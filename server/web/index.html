@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Remote Files</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+
+<section id="login-view" class="center" hidden>
+  <form id="login-form" class="card login-card">
+    <h1>Remote Files</h1>
+    <label>Username <input name="username" autocomplete="username" required></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">Sign in</button>
+    <p id="login-error" class="error" hidden></p>
+  </form>
+</section>
+
+<section id="app-view" hidden>
+  <header class="topbar">
+    <div class="brand">Remote Files <span id="company" class="muted"></span></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="devices">Devices</button>
+      <button class="tab admin-only" data-tab="users" hidden>Users</button>
+      <button class="tab admin-only" data-tab="audit" hidden>Audit log</button>
+    </nav>
+    <span id="me-badge" class="role-badge" hidden></span>
+    <button id="logout" class="btn ghost">Sign out</button>
+  </header>
+
+  <main>
+    <div id="tab-devices" class="tab-panel">
+      <div class="layout">
+        <aside class="card devices">
+          <div class="row between">
+            <h2>Devices</h2>
+            <button id="add-device" class="btn primary small">+ Add device</button>
+          </div>
+          <ul id="device-list" class="device-list"></ul>
+          <p id="no-devices" class="muted" hidden>No devices yet. Click “Add device” to create an invite link.</p>
+        </aside>
+
+        <section class="card browser">
+          <div id="browser-empty" class="muted center-pad">Select an online device to browse its files.</div>
+          <div id="browser" hidden>
+            <div class="row between wrap">
+              <div>
+                <h2 id="dev-title"></h2>
+                <div id="dev-meta" class="muted small"></div>
+              </div>
+              <div class="row gap">
+                <button id="rename-device" class="btn small">Rename</button>
+                <button id="revoke-device" class="btn danger small">Revoke</button>
+              </div>
+            </div>
+            <div id="drives" class="drives"></div>
+            <div class="row gap wrap pathbar">
+              <button id="up" class="btn small" title="Up one level">↑ Up</button>
+              <button id="refresh" class="btn small">Refresh</button>
+              <code id="cur-path"></code>
+            </div>
+
+            <div class="row gap wrap toolbar">
+              <button id="act-upload" class="btn small primary">⬆ Upload</button>
+              <button id="act-mkdir" class="btn small">New folder</button>
+              <span class="sep"></span>
+              <span id="sel-count" class="muted small">No items selected</span>
+              <button id="act-excel" class="btn small" hidden disabled>Edit in Excel</button>
+              <button id="act-download" class="btn small" disabled>⬇ Download</button>
+              <button id="act-rename" class="btn small" disabled>Rename</button>
+              <button id="act-copy" class="btn small" disabled>Copy to…</button>
+              <button id="act-move" class="btn small" disabled>Move to…</button>
+              <button id="act-delete" class="btn small danger" disabled>Delete</button>
+              <input id="file-input" type="file" multiple hidden>
+            </div>
+
+            <p id="browse-error" class="error" hidden></p>
+            <div class="table-wrap">
+              <table class="files">
+                <thead><tr>
+                  <th class="chk"><input id="sel-all" type="checkbox" aria-label="Select all"></th>
+                  <th>Name</th><th class="num">Size</th><th>Modified</th>
+                </tr></thead>
+                <tbody id="file-rows"></tbody>
+              </table>
+            </div>
+            <p id="truncated" class="muted small" hidden>Showing the first 5,000 items only.</p>
+            <ul id="ctx-menu" class="ctx-menu" hidden></ul>
+            <div id="xfer-list" class="xfer-list"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="tab-users" class="tab-panel" hidden>
+      <section class="card">
+        <div class="row between"><h2>Users &amp; roles</h2><button id="add-user" class="btn primary small">+ Add user</button></div>
+        <p class="muted small">Admin: everything. Editor: browse, upload/download, copy/move/rename. Viewer: browse and download only. Only Admin can delete.</p>
+        <div class="table-wrap">
+          <table class="files">
+            <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Added</th><th></th></tr></thead>
+            <tbody id="user-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="tab-audit" class="tab-panel" hidden>
+      <section class="card">
+        <div class="row between"><h2>Audit log</h2><button id="audit-refresh" class="btn small">Refresh</button></div>
+        <div class="table-wrap">
+          <table class="files">
+            <thead><tr><th>Time</th><th>Who</th><th>IP</th><th>Action</th><th>Device</th><th>Detail</th><th>Result</th></tr></thead>
+            <tbody id="audit-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</section>
+
+<dialog id="user-dialog" class="card">
+  <form id="user-form" method="dialog">
+    <h2 id="user-dlg-title">Add user</h2>
+    <label>Username <input id="u-name" maxlength="32" autocomplete="off"></label>
+    <label>Role
+      <select id="u-role">
+        <option value="viewer">Viewer — browse &amp; download</option>
+        <option value="editor">Editor — + upload, copy, move, rename</option>
+        <option value="admin">Admin — everything, incl. delete &amp; users</option>
+      </select>
+    </label>
+    <label id="u-pass-wrap">Password <input id="u-pass" type="password" autocomplete="new-password" minlength="10"></label>
+    <p id="u-pass-hint" class="muted small">At least 10 characters.</p>
+    <p id="user-error" class="error" hidden></p>
+    <div class="row gap end">
+      <button type="button" id="user-cancel" class="btn ghost">Cancel</button>
+      <button type="submit" id="user-save" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dest-dialog" class="card">
+  <h2 id="dest-title">Choose destination folder</h2>
+  <div class="row gap wrap pathbar">
+    <button id="dest-up" class="btn small">↑ Up</button>
+    <code id="dest-path"></code>
+  </div>
+  <div id="dest-drives" class="drives"></div>
+  <p id="dest-error" class="error" hidden></p>
+  <div class="table-wrap dest-wrap">
+    <table class="files"><tbody id="dest-rows"></tbody></table>
+  </div>
+  <div class="row gap end mt12">
+    <button id="dest-cancel" class="btn ghost">Cancel</button>
+    <button id="dest-ok" class="btn primary" disabled>Paste here</button>
+  </div>
+</dialog>
+
+<dialog id="prompt-dialog" class="card">
+  <form id="prompt-form" method="dialog">
+    <h2 id="prompt-title"></h2>
+    <p id="prompt-msg" class="muted small"></p>
+    <label id="prompt-label-wrap">_<input id="prompt-input" maxlength="255"></label>
+    <p id="prompt-error" class="error" hidden></p>
+    <div class="row gap end">
+      <button type="button" id="prompt-cancel" class="btn ghost">Cancel</button>
+      <button type="submit" id="prompt-ok" class="btn primary">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="invite-dialog" class="card">
+  <form id="invite-form" method="dialog">
+    <h2>Add a device</h2>
+    <label>Label (optional) <input name="note" maxlength="64" placeholder="e.g. Accounts PC"></label>
+    <label>Link valid for
+      <select name="hours"><option value="24" selected>24 hours</option><option value="4">4 hours</option><option value="72">3 days</option></select>
+    </label>
+    <div id="invite-result" hidden>
+      <p>Send this link to the user. It works <strong>once</strong>.</p>
+      <div class="row gap"><input id="invite-url" readonly><button id="copy-invite" type="button" class="btn small">Copy</button></div>
+      <p class="muted small" id="invite-exp"></p>
+    </div>
+    <div class="row gap end">
+      <button type="button" id="invite-close" class="btn ghost">Close</button>
+      <button type="submit" id="invite-create" class="btn primary">Create link</button>
+    </div>
+  </form>
+</dialog>
+
+</body>
+</html>

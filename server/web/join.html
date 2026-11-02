@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Connect this computer — {{.Company}}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="join">
+<main class="card join-card">
+{{if .Valid}}
+  <h1>Connect this computer</h1>
+  <p class="muted">{{.Company}} IT has invited this computer to their file management system.
+     Once you allow it, the IT admin will be able to <strong>view and manage files</strong> on this computer's drives.
+     You will be asked for permission before anything is connected.</p>
+
+  <h2>1. Download the agent</h2>
+  <div class="dl-grid">
+    <a class="btn primary" href="/join/{{.Token}}/agent/windows">Windows (64-bit)</a>
+    <a class="btn" href="/join/{{.Token}}/agent/mac-arm64">Mac — Apple Silicon (M1/M2/M3/M4)</a>
+    <a class="btn" href="/join/{{.Token}}/agent/mac-intel">Mac — Intel</a>
+  </div>
+  <p class="hint">Do not rename the downloaded file — it contains your one-time connection code.</p>
+
+  <h2>2. Run it</h2>
+  <p><strong>Windows:</strong> double-click the downloaded file. If SmartScreen appears, click
+     <em>More info → Run anyway</em>. A permission window will ask you to allow the connection.</p>
+  <p><strong>Mac:</strong> open <em>Terminal</em> and run (replace the file name if yours differs):</p>
+  <pre>cd ~/Downloads
+xattr -d com.apple.quarantine RemoteAgent-{{.Token}}
+chmod +x RemoteAgent-{{.Token}}
+./RemoteAgent-{{.Token}}</pre>
+  <p class="hint">On Mac, also allow it under <em>System Settings → Privacy &amp; Security → Full Disk Access</em>
+     so the admin can see all folders.</p>
+
+  <p class="hint">This link works once and expires automatically.</p>
+{{else}}
+  <h1>Link not valid</h1>
+  <p class="muted">This invite link is invalid, has expired, or has already been used.
+     Please ask your IT admin for a new link.</p>
+{{end}}
+</main>
+</body>
+</html>

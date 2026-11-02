@@ -1,0 +1,8 @@
+# Copy to /root/school-erp-saas/docker-compose.override.yml
+# (only if that file doesn't already exist — otherwise merge the volume line in).
+# Adds the Remote Files server block to the existing nginx WITHOUT editing
+# Clever Campus's own docker.conf.
+services:
+  nginx:
+    volumes:
+      - /root/remote-files/deploy/nginx/remote-files.conf:/etc/nginx/conf.d/remote-files.conf:ro

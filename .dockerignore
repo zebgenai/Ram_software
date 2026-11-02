@@ -1,0 +1,11 @@
+# Keep the Docker build context small and secret-free.
+.git
+.gitignore
+_wintest/
+deploy/
+README.md
+*.exe
+*.test
+*.log
+data/
+.env

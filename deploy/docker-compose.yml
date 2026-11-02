@@ -1,0 +1,57 @@
+# Remote Files — separate compose project. It does NOT publish any ports;
+# Clever Campus's nginx reaches it over the shared Docker network.
+name: remote-files
+
+services:
+  server:
+    build:
+      context: ..
+      args:
+        PUBLIC_URL: ${PUBLIC_URL}
+        COMPANY_NAME: ${COMPANY_NAME}
+    image: remote-files-server:latest
+    container_name: remote-files-server
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - remote_files_data:/data
+    networks:
+      edge:
+        aliases: [remote-files-server]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # OnlyOffice Document Server — in-browser Excel editing.
+  # Optional: comment this service out (and the ONLYOFFICE_* vars in .env) to
+  # ship without Excel editing. The bundled image includes its own db/redis,
+  # which is fine for a handful of users; it needs ~2 GB RAM.
+  onlyoffice:
+    image: onlyoffice/documentserver:8.2.2
+    container_name: remote-files-onlyoffice
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      JWT_HEADER: Authorization
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_log:/var/log/onlyoffice
+    networks:
+      edge:
+        aliases: [onlyoffice]
+    mem_limit: 2g
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  remote_files_data:
+  onlyoffice_data:
+  onlyoffice_log:
+
+networks:
+  edge:
+    external: true
+    name: clever-campus_clever_campus_net

@@ -1,0 +1,16 @@
+# Local test build & artifacts (binaries, test data, device-secret store)
+_wintest/
+*.exe
+*.test
+/data/
+*.log
+
+# Secrets — never commit (the .example template IS committed)
+.env
+deploy/.env
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
