@@ -104,6 +104,23 @@ func isSpreadsheet(name string) bool {
 	return excelExts[strings.ToLower(path.Ext(name))]
 }
 
+// splitAgentPath splits an agent file path (Windows or Unix) into a directory
+// and a separator-free file name, keeping the trailing separator for a drive
+// root ("D:\") or filesystem root ("/") so filepath.Join rebuilds it correctly
+// on the agent.
+func splitAgentPath(p string) (dir, name string) {
+	i := strings.LastIndexAny(p, `/\`)
+	if i < 0 {
+		return "", p
+	}
+	name = p[i+1:]
+	dir = p[:i]
+	if dir == "" || strings.HasSuffix(dir, ":") {
+		dir = p[:i+1] // "/file" -> "/", "D:\file" -> "D:\"
+	}
+	return dir, name
+}
+
 // ---- handlers ----
 
 // handleExcelOpen (editor+) returns the OnlyOffice editor config for a file.
@@ -127,8 +144,10 @@ func (a *App) handleExcelOpen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := path.Base(p)
-	sid := a.excel.add(&excelSession{device: id, dir: path.Dir(p), name: name, fullTxt: p})
+	// The agent's path is OS-native (Windows uses backslashes), so split on
+	// either separator — path.Base/Dir only understand '/'.
+	dir, name := splitAgentPath(p)
+	sid := a.excel.add(&excelSession{device: id, dir: dir, name: name, fullTxt: p})
 	key := randHex(16) // document version key
 
 	document := map[string]any{
