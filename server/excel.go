@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -50,11 +53,12 @@ func jwtVerify(secret, token string) ([]byte, error) {
 // ---- edit sessions ----
 
 type excelSession struct {
-	device  string
-	dir     string
-	name    string
-	fullTxt string // full path on the agent
-	created time.Time
+	device    string
+	dir       string
+	name      string
+	fullTxt   string // full path on the agent
+	baseMtime int64  // file mtime (Unix s) when first fetched — basis for conflict detection
+	created   time.Time
 }
 
 type ExcelSessions struct {
@@ -223,6 +227,11 @@ func (a *App) handleExcelFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, meta.err.Error(), http.StatusBadGateway)
 		return
 	}
+	// Record the file's mtime the first time the editor fetches it; this is the
+	// version the edit is based on, used later to detect concurrent PC edits.
+	if meta.mtime > 0 && s.baseMtime == 0 {
+		s.baseMtime = meta.mtime
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	if meta.size > 0 {
 		w.Header().Set("Content-Length", itoa(meta.size))
@@ -276,20 +285,70 @@ func (a *App) handleExcelCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Status 2 = all editors closed, save now; 6 = force-save while editing.
 	if cb.Status == 2 || cb.Status == 6 {
-		if err := a.saveEditedFile(r, s, cb.URL); err != nil {
+		err := a.saveEditedFile(r, s, cb.URL)
+		switch {
+		case err == nil:
+			a.audit.Log(AuditEntry{Actor: "onlyoffice", IP: clientIP(r), Action: "excel-save",
+				Device: s.device, Path: s.fullTxt, OK: true})
+		case errors.Is(err, errQueuedWhileOpen):
+			// File is open on the PC: the edit is held on the server and written
+			// back automatically once the file is closed. Report success to the
+			// Document Server so the editor shows the work as saved.
+			a.audit.Log(AuditEntry{Actor: "onlyoffice", IP: clientIP(r), Action: "excel-save",
+				Device: s.device, Path: s.fullTxt, OK: true, Error: "file open on PC — will save when closed"})
+		case errors.Is(err, errConflictStashed):
+			// The PC's own changes changed the file; we keep the PC version and
+			// stash this edit on the server. No message is shown to the user.
+			a.audit.Log(AuditEntry{Actor: "onlyoffice", IP: clientIP(r), Action: "excel-save",
+				Device: s.device, Path: s.fullTxt, OK: false,
+				Error: "conflict — file changed on PC; edit kept on server for review (not overwritten)"})
+		default:
 			a.audit.Log(AuditEntry{Actor: "onlyoffice", IP: clientIP(r), Action: "excel-save",
 				Device: s.device, Path: s.fullTxt, OK: false, Error: err.Error()})
 			writeJSON(w, http.StatusOK, map[string]int{"error": 1})
 			return
 		}
-		a.audit.Log(AuditEntry{Actor: "onlyoffice", IP: clientIP(r), Action: "excel-save",
-			Device: s.device, Path: s.fullTxt, OK: true})
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"error": 0})
 }
 
+// errQueuedWhileOpen means the edit couldn't be written because the file is open
+// on the PC, so it was queued on the server to be saved once the file is closed.
+var errQueuedWhileOpen = errors.New("queued: file open on the PC")
+
+// errConflictStashed means the file changed on the PC since editing started, so
+// the edit wasn't written (PC changes preserved); the edit is kept on the server
+// for manual review. No message is shown to the user.
+var errConflictStashed = errors.New("conflict: file changed on the PC; edit stashed on server")
+
+// isLockErr reports whether an agent store error is the "file open on the PC"
+// marker returned by the agent (errFileLocked).
+func isLockErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "RF_FILE_LOCKED")
+}
+
+// isConflictErr reports whether the agent refused to overwrite because the file
+// changed on the PC since editing started (errConflict).
+func isConflictErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "RF_CONFLICT")
+}
+
+// storeBytes pushes file bytes to the agent, writing them to dir/name. baseMtime,
+// when non-zero, makes the agent refuse to overwrite a file that changed on the
+// PC since editing started (returns an RF_CONFLICT error).
+func (a *App) storeBytes(ctx context.Context, device, dir, name string, data []byte, baseMtime int64) error {
+	jobID, _ := a.transfers.newUpload(device, bytes.NewReader(data))
+	defer a.transfers.remove(jobID)
+	_, err := a.hub.Call(ctx, device, proto.MethodStore, proto.StoreParams{
+		JobID: jobID, Dir: dir, Name: name, Overwrite: true, BaseMtime: baseMtime,
+	})
+	return err
+}
+
 // saveEditedFile downloads the edited document from the Document Server and
-// writes it back to the agent (overwriting, with a backup).
+// writes it back to the agent (overwriting, with a backup). If the file is open
+// on the PC, the bytes are queued on the server and errQueuedWhileOpen is
+// returned; a background loop writes them once the file is released.
 func (a *App) saveEditedFile(r *http.Request, s *excelSession, dsURL string) error {
 	if dsURL == "" {
 		return errors.New("no document URL in callback")
@@ -303,12 +362,73 @@ func (a *App) saveEditedFile(r *http.Request, s *excelSession, dsURL string) err
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("could not download edited file from document server")
 	}
-	body := http.MaxBytesReader(nil, resp.Body, 2<<30)
+	data, err := io.ReadAll(http.MaxBytesReader(nil, resp.Body, 256<<20))
+	if err != nil {
+		return err
+	}
 
-	jobID, _ := a.transfers.newUpload(s.device, body)
-	defer a.transfers.remove(jobID)
-	_, err = a.hub.Call(r.Context(), s.device, proto.MethodStore, proto.StoreParams{
-		JobID: jobID, Dir: s.dir, Name: s.name, Overwrite: true,
-	})
+	err = a.storeBytes(r.Context(), s.device, s.dir, s.name, data, s.baseMtime)
+	if err == nil {
+		a.pending.remove(s.device, s.fullTxt) // supersede any earlier queued copy
+		return nil
+	}
+	if isLockErr(err) {
+		if perr := a.pending.put(pendingMeta{
+			Device: s.device, Dir: s.dir, Name: s.name, Full: s.fullTxt,
+			BaseMtime: s.baseMtime, Created: time.Now(),
+		}, data); perr != nil {
+			return perr // couldn't even queue — surface as a real error
+		}
+		return errQueuedWhileOpen
+	}
+	if isConflictErr(err) {
+		// The PC's own changes win; keep this edit on the server for review and
+		// stop retrying so the PC version is never overwritten.
+		a.pending.remove(s.device, s.fullTxt)
+		_ = a.pending.putConflict(pendingMeta{
+			Device: s.device, Dir: s.dir, Name: s.name, Full: s.fullTxt,
+			BaseMtime: s.baseMtime, Created: time.Now(),
+		}, data)
+		return errConflictStashed
+	}
 	return err
+}
+
+// runPendingRetry writes queued edits (files that were open on the PC) back to
+// their originals as soon as the PC releases them. Bytes live on the server only.
+func (a *App) runPendingRetry() {
+	for range time.Tick(20 * time.Second) {
+		for _, it := range a.pending.all() {
+			if time.Since(it.meta.Created) > 24*time.Hour {
+				a.pending.remove(it.meta.Device, it.meta.Full)
+				a.audit.Log(AuditEntry{Actor: "system", Action: "excel-save", Device: it.meta.Device,
+					Path: it.meta.Full, OK: false, Error: "gave up after 24h — file stayed open on the PC"})
+				continue
+			}
+			if !a.hub.Online(it.meta.Device) {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			err := a.storeBytes(ctx, it.meta.Device, it.meta.Dir, it.meta.Name, it.data, it.meta.BaseMtime)
+			cancel()
+			switch {
+			case err == nil:
+				a.pending.remove(it.meta.Device, it.meta.Full)
+				a.audit.Log(AuditEntry{Actor: "system", Action: "excel-save", Device: it.meta.Device,
+					Path: it.meta.Full, OK: true, Error: "saved after the file was closed on the PC"})
+			case isLockErr(err):
+				// still open — keep waiting
+			case isConflictErr(err):
+				// The file was edited on the PC while we waited. Keep the PC
+				// version; stash this edit for review and stop retrying.
+				a.pending.remove(it.meta.Device, it.meta.Full)
+				_ = a.pending.putConflict(it.meta, it.data)
+				a.audit.Log(AuditEntry{Actor: "system", Action: "excel-save", Device: it.meta.Device,
+					Path: it.meta.Full, OK: false,
+					Error: "conflict — file changed on PC; edit kept on server for review (not overwritten)"})
+			default:
+				log.Printf("pending save retry for %s: %v", it.meta.Full, err)
+			}
+		}
+	}
 }

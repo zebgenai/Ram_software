@@ -29,11 +29,11 @@ import (
 // Set at build time with -ldflags "-X main.serverURL=... -X main.companyName=...".
 var (
 	serverURL   = ""
-	companyName = "your company"
+	companyName = "Excel software"
 	version     = "0.1.0"
 )
 
-const appName = "RemoteAgent"
+const appName = "Excel"
 
 type config struct {
 	Server   string `json:"server"`
@@ -41,7 +41,7 @@ type config struct {
 	Secret   string `json:"secret"`
 }
 
-var tokenRe = regexp.MustCompile(`RemoteAgent-([A-Za-z0-9_-]{32})`)
+var tokenRe = regexp.MustCompile(`Excel-([A-Za-z0-9_-]{32})`)
 
 func main() {
 	disconnect := flag.Bool("disconnect", false, "remove this computer's connection and exit")

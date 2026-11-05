@@ -65,7 +65,7 @@ func main() {
 		PublicURL:   strings.TrimRight(env("PUBLIC_URL", ""), "/"),
 		AdminUser:   env("ADMIN_USER", "admin"),
 		AdminHash:   env("ADMIN_PASSWORD_HASH", ""),
-		CompanyName: env("COMPANY_NAME", "Company"),
+		CompanyName: env("COMPANY_NAME", "Excel software"),
 
 		OfficePublicURL: strings.TrimRight(env("ONLYOFFICE_PUBLIC_URL", ""), "/"),
 		OfficeJWTSecret: env("ONLYOFFICE_JWT_SECRET", ""),
@@ -93,7 +93,9 @@ func main() {
 		limiter:   NewLimiter(),
 		transfers: NewTransfers(),
 		excel:     NewExcelSessions(),
+		pending:   NewPendingSaves(cfg.DataDir),
 	}
+	go app.runPendingRetry()
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

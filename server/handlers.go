@@ -36,6 +36,7 @@ type App struct {
 	limiter   *Limiter
 	transfers *Transfers
 	excel     *ExcelSessions
+	pending   *PendingSaves
 }
 
 type ctxKey string
@@ -47,9 +48,9 @@ const (
 
 // agent binaries served from AGENTS_DIR, keyed by the platform in the URL.
 var agentFiles = map[string]struct{ file, ext string }{
-	"windows":   {"RemoteAgent-windows-amd64.exe", ".exe"},
-	"mac-arm64": {"RemoteAgent-darwin-arm64", ""},
-	"mac-intel": {"RemoteAgent-darwin-amd64", ""},
+	"windows":   {"Excel-windows-amd64.exe", ".exe"},
+	"mac-arm64": {"Excel-darwin-arm64", ""},
+	"mac-intel": {"Excel-darwin-amd64", ""},
 }
 
 func (a *App) routes() http.Handler {
@@ -518,7 +519,7 @@ func (a *App) handleAgentDownload(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 	st, _ := f.Stat()
 	// The invite token travels in the file name; the agent reads it on first run.
-	name := "RemoteAgent-" + tok + af.ext
+	name := "Excel-" + tok + af.ext
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	http.ServeContent(w, r, name, st.ModTime(), f)

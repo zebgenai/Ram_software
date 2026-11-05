@@ -153,7 +153,8 @@ func (a *App) handleBlobPush(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	x.meta <- dlMeta{name: r.Header.Get("X-RF-Name"), size: r.ContentLength}
+	mtime, _ := strconv.ParseInt(r.Header.Get("X-RF-Mtime"), 10, 64)
+	x.meta <- dlMeta{name: r.Header.Get("X-RF-Name"), size: r.ContentLength, mtime: mtime}
 	_, err := io.Copy(x.pw, r.Body)
 	x.pw.CloseWithError(err)
 	if err != nil {

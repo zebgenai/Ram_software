@@ -17,9 +17,10 @@ type Transfers struct {
 }
 
 type dlMeta struct {
-	name string
-	size int64
-	err  error
+	name  string
+	size  int64
+	mtime int64 // file modification time on the PC (Unix seconds), 0 if unknown
+	err   error
 }
 
 type xfer struct {

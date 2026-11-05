@@ -61,10 +61,9 @@ const (
 	idiApplication = 32512
 	idcArrow       = 32512
 
-	// Embedded icons (see rsrc.rc): app icon = the exe/window identity (zeb),
-	// tray icon = the Excel glyph shown in the notification area.
-	idiAppIcon  = 1
-	idiTrayIcon = 2
+	// Embedded application icon (see rsrc.rc) — used everywhere: exe file icon,
+	// window, and the system tray.
+	idiAppIcon = 1
 
 	imageIcon      = 1
 	lrDefaultColor = 0x0000
@@ -163,10 +162,10 @@ func runTray(cfg config, cfgPath string) {
 	trayServer = cfg.Server
 
 	hInst, _, _ := pGetModuleHandle.Call(0)
-	// Window/app identity uses the app icon (zeb); the tray uses the Excel glyph.
+	// One icon everywhere: window, taskbar, and the system tray.
 	appBig := loadIconRes(hInst, idiAppIcon, sysMetric(smCXIcon), sysMetric(smCYIcon))
 	appSmall := loadIconRes(hInst, idiAppIcon, sysMetric(smCXSmall), sysMetric(smCYSmall))
-	trayIcon := loadIconRes(hInst, idiTrayIcon, sysMetric(smCXSmall), sysMetric(smCYSmall))
+	trayIcon := loadIconRes(hInst, idiAppIcon, sysMetric(smCXSmall), sysMetric(smCYSmall))
 	cursor, _, _ := pLoadCursor.Call(0, uintptr(idcArrow))
 	className := utf16("RemoteFilesTrayClass")
 

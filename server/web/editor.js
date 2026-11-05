@@ -10,7 +10,7 @@
   const path = params.get("path");
   const title = params.get("name") || (path ? path.split(/[\\/]/).pop() : "Spreadsheet");
   document.getElementById("editor-title").textContent = title;
-  document.title = title + " — Remote Files";
+  document.title = title + " — Excel";
 
   function fail(msg) {
     const box = document.getElementById("editor-error");

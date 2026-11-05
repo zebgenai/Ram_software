@@ -90,6 +90,10 @@ type StoreParams struct {
 	Dir       string `json:"dir"`
 	Name      string `json:"name"`
 	Overwrite bool   `json:"overwrite"`
+	// BaseMtime, when non-zero, is the file's modification time (Unix seconds)
+	// that the edit was based on. If the file on disk has a different mtime, the
+	// agent refuses to overwrite (RF_CONFLICT) so concurrent edits aren't lost.
+	BaseMtime int64 `json:"baseMtime,omitempty"`
 }
 
 // OpResult is returned by mkdir/rename/move/copy/delete/store.
