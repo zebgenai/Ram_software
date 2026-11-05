@@ -27,6 +27,7 @@ var (
 	pTranslateMessage = user32.NewProc("TranslateMessage")
 	pDispatchMessage  = user32.NewProc("DispatchMessageW")
 	pLoadIcon         = user32.NewProc("LoadIconW")
+	pLoadImage        = user32.NewProc("LoadImageW")
 	pLoadCursor       = user32.NewProc("LoadCursorW")
 	pPostQuitMessage  = user32.NewProc("PostQuitMessage")
 	pCreatePopupMenu  = user32.NewProc("CreatePopupMenu")
@@ -35,6 +36,7 @@ var (
 	pDestroyMenu      = user32.NewProc("DestroyMenu")
 	pGetCursorPos     = user32.NewProc("GetCursorPos")
 	pSetForegroundWin = user32.NewProc("SetForegroundWindow")
+	pGetSystemMetrics = user32.NewProc("GetSystemMetrics")
 
 	pShellNotifyIcon = shell32w.NewProc("Shell_NotifyIconW")
 	pShellExecute    = shell32w.NewProc("ShellExecuteW")
@@ -58,6 +60,19 @@ const (
 
 	idiApplication = 32512
 	idcArrow       = 32512
+
+	// Embedded icons (see rsrc.rc): app icon = the exe/window identity (zeb),
+	// tray icon = the Excel glyph shown in the notification area.
+	idiAppIcon  = 1
+	idiTrayIcon = 2
+
+	imageIcon      = 1
+	lrDefaultColor = 0x0000
+	lrShared       = 0x8000
+	smCXSmall      = 49 // SM_CXSMICON
+	smCYSmall      = 50 // SM_CYSMICON
+	smCXIcon       = 11 // SM_CXICON
+	smCYIcon       = 12 // SM_CYICON
 
 	mfString       = 0x0
 	tpmRightButton = 0x0002
@@ -127,12 +142,31 @@ func utf16(s string) *uint16 {
 	return p
 }
 
+func sysMetric(i int) int {
+	r, _, _ := pGetSystemMetrics.Call(uintptr(i))
+	return int(r)
+}
+
+// loadIconRes loads an embedded icon (rsrc.rc) by resource id at the given size,
+// falling back to the generic application icon if it can't be loaded.
+func loadIconRes(hInst uintptr, resID, cx, cy int) uintptr {
+	h, _, _ := pLoadImage.Call(hInst, uintptr(resID), imageIcon,
+		uintptr(cx), uintptr(cy), lrDefaultColor|lrShared)
+	if h == 0 {
+		h, _, _ = pLoadIcon.Call(0, uintptr(idiApplication))
+	}
+	return h
+}
+
 func runTray(cfg config, cfgPath string) {
 	trayCfgPath = cfgPath
 	trayServer = cfg.Server
 
 	hInst, _, _ := pGetModuleHandle.Call(0)
-	icon, _, _ := pLoadIcon.Call(0, uintptr(idiApplication))
+	// Window/app identity uses the app icon (zeb); the tray uses the Excel glyph.
+	appBig := loadIconRes(hInst, idiAppIcon, sysMetric(smCXIcon), sysMetric(smCYIcon))
+	appSmall := loadIconRes(hInst, idiAppIcon, sysMetric(smCXSmall), sysMetric(smCYSmall))
+	trayIcon := loadIconRes(hInst, idiTrayIcon, sysMetric(smCXSmall), sysMetric(smCYSmall))
 	cursor, _, _ := pLoadCursor.Call(0, uintptr(idcArrow))
 	className := utf16("RemoteFilesTrayClass")
 
@@ -140,9 +174,10 @@ func runTray(cfg config, cfgPath string) {
 		Style:         0,
 		LpfnWndProc:   syscall.NewCallback(wndProc),
 		HInstance:     hInst,
-		HIcon:         icon,
+		HIcon:         appBig,
 		HCursor:       cursor,
 		LpszClassName: className,
+		HIconSm:       appSmall,
 	}
 	wc.CbSize = uint32(unsafe.Sizeof(wc))
 	if ret, _, err := pRegisterClassEx.Call(uintptr(unsafe.Pointer(&wc))); ret == 0 {
@@ -165,7 +200,7 @@ func runTray(cfg config, cfgPath string) {
 		UID:              1,
 		UFlags:           nifMessage | nifIcon | nifTip,
 		UCallbackMessage: trayMessage,
-		HIcon:            icon,
+		HIcon:            trayIcon,
 	}
 	trayNID.CbSize = uint32(unsafe.Sizeof(trayNID))
 	copy(trayNID.SzTip[:], syscall.StringToUTF16(appName+" — connected"))

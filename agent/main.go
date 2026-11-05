@@ -251,6 +251,15 @@ func run(cfg config, cfgPath string) {
 			sem <- struct{}{}
 			go func(r proto.Request) {
 				defer func() { <-sem }()
+				// A panic while handling one command must never take the whole
+				// agent down — report it as an error and keep serving.
+				defer func() {
+					if rec := recover(); rec != nil {
+						log.Printf("recovered from panic handling %s: %v", r.Method, rec)
+						sendResult(resultClient, cfg, proto.Response{ID: r.ID,
+							Error: fmt.Sprintf("internal agent error: %v", rec)})
+					}
+				}()
 				sendResult(resultClient, cfg, handle(cfg, r))
 			}(r)
 		}
