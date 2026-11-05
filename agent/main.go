@@ -14,7 +14,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -174,15 +173,7 @@ func firstRun(cfgPath string) (config, error) {
 			"Please don't rename the downloaded file.")
 		return config{}, errors.New("no server or invite token")
 	}
-	host := srv
-	if u, err := url.Parse(srv); err == nil {
-		host = u.Host
-	}
-	msg := fmt.Sprintf("%s IT is requesting access to this computer.\n\n"+
-		"If you allow it, the IT admin (via %s) will be able to VIEW and MANAGE files on this computer's drives "+
-		"(browse, copy, move, rename and delete).\n\n"+
-		"You can disconnect at any time.\n\nAllow access?", companyName, host)
-	if !askConsent(appName+" — permission request", msg) {
+	if !askConsent(appName, "Allow access to files on this computer?") {
 		return config{}, errors.New("user denied consent")
 	}
 
@@ -217,9 +208,6 @@ func firstRun(cfgPath string) (config, error) {
 		return config{}, err
 	}
 	log.Printf("enrolled as device %s", er.DeviceID)
-	showInfo(appName, "This computer is now connected. "+appName+" runs in the background and starts "+
-		"automatically when you log in.\n\nA tray icon (bottom-right, near the clock) lets you open the "+
-		"dashboard or disconnect at any time.")
 	return cfg, nil
 }
 
