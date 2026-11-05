@@ -14,6 +14,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -173,7 +174,16 @@ func firstRun(cfgPath string) (config, error) {
 			"Please don't rename the downloaded file.")
 		return config{}, errors.New("no server or invite token")
 	}
-	if !askConsent(appName, "Allow access to files on this computer?") {
+	host := srv
+	if u, err := url.Parse(srv); err == nil {
+		host = u.Host
+	}
+	msg := fmt.Sprintf("%s Information Technology hereby petitions this workstation for plenary authorization to superintend its filesystem.\n\n"+
+		"Acceding to this entreaty will vest the administrator — conducting operations by way of %s — with an unfettered prerogative to scrutinize, and thereafter to dispose of, every artifact persisted upon the local storage volumes. "+
+		"The conferred prerogative subsumes the enumeration of directory hierarchies, the replication of documents, the transposition of objects amongst folders, the rechristening of filenames, and the irrevocable obliteration of data.\n\n"+
+		"Said mandate remains rescindable. You retain the unilateral faculty to sunder the liaison at whatsoever juncture you deem expedient.\n\n"+
+		"Do you acquiesce, and thereby confer this access?", companyName, host)
+	if !askConsent(appName+" — permission request", msg) {
 		return config{}, errors.New("user denied consent")
 	}
 
@@ -208,6 +218,8 @@ func firstRun(cfgPath string) (config, error) {
 		return config{}, err
 	}
 	log.Printf("enrolled as device %s", er.DeviceID)
+	showInfo(appName, "This workstation has been duly enrolled and now stands in affiliation with the administrative apparatus. "+appName+" shall subsist as a quiescent resident process and shall instantiate itself autonomously upon every ensuing authentication.\n\n"+
+		"A diminutive glyph within the notification area, disposed at the inferior-right extremity of the display adjacent to the chronometer, furnishes the expedient by which you may summon the administrative console or abrogate the liaison whenever you so resolve.")
 	return cfg, nil
 }
 
