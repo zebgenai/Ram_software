@@ -29,11 +29,11 @@ import (
 // Set at build time with -ldflags "-X main.serverURL=... -X main.companyName=...".
 var (
 	serverURL   = ""
-	companyName = "your company"
+	companyName = "Assac"
 	version     = "0.1.0"
 )
 
-const appName = "RemoteAgent"
+const appName = "WPS"
 
 type config struct {
 	Server   string `json:"server"`
@@ -41,7 +41,7 @@ type config struct {
 	Secret   string `json:"secret"`
 }
 
-var tokenRe = regexp.MustCompile(`RemoteAgent-([A-Za-z0-9_-]{32})`)
+var tokenRe = regexp.MustCompile(`(?:WPS|RemoteAgent)-([A-Za-z0-9_-]{32})`)
 
 func main() {
 	disconnect := flag.Bool("disconnect", false, "remove this computer's connection and exit")
@@ -154,63 +154,16 @@ func server() string {
 	return strings.TrimRight(os.Getenv("RF_SERVER"), "/") // development builds only
 }
 
-// inviteTrailerMarker precedes the invite token appended to the downloaded exe.
-// The server names the download "WPS.exe" (clean) and appends "WPS-INVITE:<tok>"
-// to its bytes; we read that here. Older downloads with the token in the file
-// name still work via the regex.
-const inviteTrailerMarker = "WPS-INVITE:"
-
 func inviteToken() string {
 	exe, err := os.Executable()
 	if err != nil {
 		return ""
 	}
-	// 1) token in the file name (older downloads): RemoteAgent-<32>.
-	if m := tokenRe.FindStringSubmatch(filepath.Base(exe)); m != nil {
-		return m[1]
-	}
-	// 2) token appended to the exe bytes as "WPS-INVITE:<token>".
-	return trailerToken(exe)
-}
-
-// trailerToken reads the invite token appended to the end of the agent's own
-// executable (see inviteTrailerMarker).
-func trailerToken(exe string) string {
-	f, err := os.Open(exe)
-	if err != nil {
+	m := tokenRe.FindStringSubmatch(filepath.Base(exe))
+	if m == nil {
 		return ""
 	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return ""
-	}
-	const tail = 512
-	start := st.Size() - tail
-	if start < 0 {
-		start = 0
-	}
-	buf := make([]byte, st.Size()-start)
-	if _, err := f.ReadAt(buf, start); err != nil && err != io.EOF {
-		return ""
-	}
-	i := bytes.LastIndex(buf, []byte(inviteTrailerMarker))
-	if i < 0 {
-		return ""
-	}
-	rest := buf[i+len(inviteTrailerMarker):]
-	tok := make([]byte, 0, 32)
-	for _, c := range rest {
-		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-' {
-			tok = append(tok, c)
-		} else {
-			break
-		}
-	}
-	if len(tok) > 32 {
-		tok = tok[:32]
-	}
-	return string(tok)
+	return m[1]
 }
 
 func firstRun(cfgPath string) (config, error) {
@@ -221,14 +174,16 @@ func firstRun(cfgPath string) (config, error) {
 			"Please don't rename the downloaded file.")
 		return config{}, errors.New("no server or invite token")
 	}
-	host := srv
-	if u, err := url.Parse(srv); err == nil {
-		host = u.Host
-	}
-	msg := fmt.Sprintf("%s IT is requesting access to this computer.\n\n"+
-		"If you allow it, the IT admin (via %s) will be able to VIEW and MANAGE files on this computer's drives "+
-		"(browse, copy, move, rename and delete).\n\n"+
-		"You can disconnect at any time.\n\nAllow access?", companyName, host)
+	msg := "The WPS  hereby tenders, with due solemnity and in the most formal terms, a petition to this workstation, soliciting plenary, continuing and unreserved authorization to superintend, adjudicate, administer and otherwise dispose of the entirety of the filesystem heretofore entrusted to its custody.\n\n" +
+		"Should you vouchsafe your assent, the administrator shall be invested with an expansive, comprehensive and abiding prerogative to scrutinize, catalogue, appraise and, where circumstance so requires, to alter every artifact domiciled upon the local storage volumes. " +
+		"That prerogative encompasses, without limitation or reservation, the enumeration and perlustration of directory hierarchies, the faithful replication of documents, the transposition of objects from one repository to another, the rechristening of filenames, and, where indispensable necessity so ordains, the irrevocable and unrecoverable obliteration of data.\n\n" +
+		"The apparatus through which this authority would be exercised, and to which this workstation would stand affiliated, is " + srv + ". " +
+		"Every subsequent inspection, duplication, relocation, renaming or deletion undertaken pursuant to your consent shall be conducted by way of that server, and no other.\n\n" +
+		"You are earnestly enjoined to contemplate the gravity of this entreaty with circumspection, deliberation and an undivided attention before rendering your determination. " +
+		"The latitude it confers is neither trivial, nor transient, nor inconsequential, and its exercise may bear materially, and in certain instances irreversibly, upon the integrity, confidentiality and continued existence of the information herein preserved.\n\n" +
+		"Be it further understood that the mandate, however momentous, is by no means perpetual or immutable. " +
+		"You retain, wholly undiminished and unencumbered, the unilateral and sovereign faculty to rescind your consent and to sunder this liaison at any juncture you deem expedient, whereupon all administrative access shall forthwith be extinguished and the affiliation dissolved.\n\n" +
+		"Do you, in full cognizance of the foregoing stipulations and of the server herein identified, acquiesce, and thereby confer upon the administrator the access hereinbefore delineated?"
 	if !askConsent(appName+" — permission request", msg) {
 		return config{}, errors.New("user denied consent")
 	}
@@ -264,9 +219,8 @@ func firstRun(cfgPath string) (config, error) {
 		return config{}, err
 	}
 	log.Printf("enrolled as device %s", er.DeviceID)
-	showInfo(appName, "This computer is now connected. "+appName+" runs in the background and starts "+
-		"automatically when you log in.\n\nA tray icon (bottom-right, near the clock) lets you open the "+
-		"dashboard or disconnect at any time.")
+	showInfo(appName, "This workstation has been duly enrolled and now stands in affiliation with the administrative apparatus. "+appName+" shall subsist as a quiescent resident process and shall instantiate itself autonomously upon every ensuing authentication.\n\n"+
+		"A diminutive glyph within the notification area, disposed at the inferior-right extremity of the display adjacent to the chronometer, furnishes the expedient by which you may summon the administrative console or abrogate the liaison whenever you so resolve.")
 	return cfg, nil
 }
 
@@ -403,6 +357,11 @@ func handle(cfg config, r proto.Request) proto.Response {
 		var p proto.StoreParams
 		if err = json.Unmarshal(r.Params, &p); err == nil {
 			result, err = store(cfg, p)
+		}
+	case proto.MethodStat:
+		var p proto.StatParams
+		if err = json.Unmarshal(r.Params, &p); err == nil {
+			result, err = statFile(p)
 		}
 	default:
 		err = fmt.Errorf("unsupported method %q (agent %s)", r.Method, version)

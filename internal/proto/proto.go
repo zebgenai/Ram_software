@@ -16,6 +16,7 @@ const (
 	MethodDelete = "delete"
 	MethodFetch  = "fetch" // download: agent pushes file bytes to the server
 	MethodStore  = "store" // upload: agent pulls file bytes from the server
+	MethodStat   = "stat"  // report whether a file exists and is open/locked on the PC
 )
 
 // Request is a command the server queues for an agent.
@@ -79,6 +80,18 @@ type RenameParams struct {
 type TransferParams struct {
 	Src    string `json:"src"`
 	DstDir string `json:"dstDir"`
+}
+
+// StatParams asks the agent about one file.
+type StatParams struct {
+	Path string `json:"path"`
+}
+
+// StatResult reports whether the file exists and whether it's currently open
+// (write-locked) by another program on the PC.
+type StatResult struct {
+	Exists bool `json:"exists"`
+	Open   bool `json:"open"`
 }
 
 type DeleteParams struct {

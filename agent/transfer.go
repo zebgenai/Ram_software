@@ -76,6 +76,26 @@ var errFileLocked = errors.New("RF_FILE_LOCKED: the file is open on the PC")
 // (someone saved different changes on the PC), so overwriting would lose them.
 var errConflict = errors.New("RF_CONFLICT: the file changed on the PC since editing started")
 
+// statFile reports whether a file exists and whether it's currently open
+// (write-locked) by another program on the PC.
+func statFile(p proto.StatParams) (proto.StatResult, error) {
+	path, err := cleanAbs(p.Path)
+	if err != nil {
+		return proto.StatResult{}, err
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return proto.StatResult{Exists: false}, nil
+		}
+		return proto.StatResult{}, err
+	}
+	if st.IsDir() {
+		return proto.StatResult{Exists: true}, nil
+	}
+	return proto.StatResult{Exists: true, Open: isWriteLocked(path)}, nil
+}
+
 // isWriteLocked reports whether an existing file can't be opened for writing
 // (because another program holds it open). A missing file is not locked.
 func isWriteLocked(path string) bool {

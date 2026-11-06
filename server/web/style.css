@@ -89,7 +89,9 @@ dialog::backdrop { background: rgb(0 0 0 / .4); }
 #editor-title { font-weight: 600; }
 .drive-group { display: block; width: 100%; margin: 8px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .btn.drive.quick { border-color: var(--accent); }
-#editor-hint { padding: 6px 14px; background: var(--card); border-bottom: 1px solid var(--line); }
+#editor-hint { padding: 6px 14px; background: var(--card); border-bottom: 1px solid var(--line); transition: background .2s; }
+#editor-hint.warn { background: #7a5900; color: #fff; }
+#editor-hint.ok { background: #14532d; color: #fff; }
 #ph { flex: 1; min-height: 0; }
 #ph iframe { width: 100%; height: 100%; border: 0; display: block; }
 .editor-error { margin: 16px; padding: 12px 14px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); }

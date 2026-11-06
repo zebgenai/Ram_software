@@ -38,7 +38,7 @@ func ensureInstalled() error {
 }
 
 func forgetOldTasks() {
-	for _, name := range []string{"Excel", "RemoteFilesAgent"} {
+	for _, name := range []string{"Excel", "RemoteFilesAgent", "RemoteAgent"} {
 		runHidden("schtasks", "/Delete", "/TN", name, "/F")
 	}
 }

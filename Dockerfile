@@ -2,7 +2,7 @@
 # The agents get PUBLIC_URL and COMPANY_NAME baked in at build time.
 FROM golang:1.24-alpine AS build
 ARG PUBLIC_URL
-ARG COMPANY_NAME="WPS"
+ARG COMPANY_NAME="Assac"
 RUN test -n "$PUBLIC_URL" || (echo "PUBLIC_URL build arg is required" && exit 1)
 WORKDIR /src
 COPY go.mod ./

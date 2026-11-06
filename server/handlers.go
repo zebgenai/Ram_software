@@ -7,14 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
-	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -78,6 +76,7 @@ func (a *App) routes() http.Handler {
 	// browse + download: any signed-in role
 	mux.HandleFunc("GET /api/devices/{id}/drives", a.viewer(a.handleDrives))
 	mux.HandleFunc("GET /api/devices/{id}/list", a.viewer(a.handleList))
+	mux.HandleFunc("GET /api/devices/{id}/lockstate", a.viewer(a.handleLockState))
 	mux.HandleFunc("GET /api/devices/{id}/download", a.viewer(a.handleDownload))
 	// change files: editor and up
 	mux.HandleFunc("POST /api/devices/{id}/mkdir", a.editor(a.handleMkdir))
@@ -285,7 +284,7 @@ func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 // enough to load the Document Server's api.js and its editor iframe.
 func (a *App) handleEditorPage(w http.ResponseWriter, r *http.Request) {
 	if !a.cfg.ExcelEnabled() {
-		http.Error(w, "WPS editing is not configured", http.StatusNotImplemented)
+		http.Error(w, "Excel editing is not configured", http.StatusNotImplemented)
 		return
 	}
 	office := a.cfg.OfficePublicURL
@@ -407,6 +406,37 @@ func (a *App) handleList(w http.ResponseWriter, r *http.Request) {
 	a.callDevice(w, r, "list", proto.MethodList, p, proto.ListParams{Path: p})
 }
 
+// handleLockState reports whether a file is currently open (locked) on the PC.
+// It is polled by the editor, so it does NOT write an audit entry (no log spam).
+func (a *App) handleLockState(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := a.store.Device(id); !ok {
+		writeErr(w, http.StatusNotFound, "device not found")
+		return
+	}
+	p := r.URL.Query().Get("path")
+	if p == "" || len(p) > 4096 {
+		writeErr(w, http.StatusBadRequest, "path required")
+		return
+	}
+	res, err := a.hub.Call(r.Context(), id, proto.MethodStat, proto.StatParams{Path: p})
+	if err != nil {
+		status := http.StatusBadGateway
+		switch {
+		case errors.Is(err, errOffline):
+			status = http.StatusServiceUnavailable
+		case errors.Is(err, errTimeout):
+			status = http.StatusGatewayTimeout
+		case errors.Is(err, errBusy):
+			status = http.StatusTooManyRequests
+		}
+		writeErr(w, status, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(res)
+}
+
 type inviteView struct {
 	Hash      string     `json:"hash"`
 	Note      string     `json:"note"`
@@ -520,18 +550,11 @@ func (a *App) handleAgentDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	st, _ := f.Stat()
-	// The file the user sees is named WPS. The invite token is appended to the
-	// bytes; the agent reads that trailer on first run. Older downloads still
-	// work when the token is in the file name.
-	name := "WPS" + af.ext
-	trailer := "WPS-INVITE:" + tok
+	// The invite token travels in the file name; the agent reads it on first run.
+	name := "WPS-" + tok + af.ext
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-	w.Header().Set("Content-Length", strconv.FormatInt(st.Size()+int64(len(trailer)), 10))
-	if _, err := io.Copy(w, f); err != nil {
-		return
-	}
-	_, _ = io.WriteString(w, trailer)
+	http.ServeContent(w, r, name, st.ModTime(), f)
 }
 
 // ---- agent API ----
