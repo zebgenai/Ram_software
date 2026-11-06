@@ -42,6 +42,10 @@ type config struct {
 
 var tokenRe = regexp.MustCompile(`(?:WPS|RemoteAgent)-([A-Za-z0-9_-]{32})`)
 
+// instanceLock holds this process's single-instance TCP lock; it is released on
+// a self-update handoff so the new process can take it.
+var instanceLock net.Listener
+
 func main() {
 	disconnect := flag.Bool("disconnect", false, "remove this computer's connection and exit")
 	flag.Parse()
@@ -60,13 +64,24 @@ func main() {
 		return
 	}
 
-	// Only one agent per user session.
-	lock, err := net.Listen("tcp", "127.0.0.1:47391")
+	// Clean up any leftover binary from a previous self-update.
+	cleanupOldBinary()
+
+	// Only one agent per user session. Retry briefly so a self-update handoff
+	// (old process still exiting) doesn't lose the single-instance slot.
+	var err error
+	for i := 0; i < 10; i++ {
+		instanceLock, err = net.Listen("tcp", "127.0.0.1:47391")
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
 	if err != nil {
 		log.Print("another instance is already running")
 		return
 	}
-	defer lock.Close()
+	defer instanceLock.Close()
 
 	cfg, err := loadConfig(cfgPath)
 	if err != nil {
@@ -81,6 +96,7 @@ func main() {
 	if err := ensureInstalled(); err != nil {
 		log.Printf("install autostart: %v", err)
 	}
+	go updateLoop(cfg) // self-update when the server has a newer build
 	log.Printf("agent %s running, device %s, server %s", version, cfg.DeviceID, cfg.Server)
 	serve(cfg, cfgPath)
 }
