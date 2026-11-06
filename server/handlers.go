@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -518,11 +520,18 @@ func (a *App) handleAgentDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	st, _ := f.Stat()
-	// The invite token travels in the file name; the agent reads it on first run.
-	name := "WPS-" + tok + af.ext
+	// The file the user sees is named WPS. The invite token is appended to the
+	// bytes; the agent reads that trailer on first run. Older downloads still
+	// work when the token is in the file name.
+	name := "WPS" + af.ext
+	trailer := "WPS-INVITE:" + tok
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-	http.ServeContent(w, r, name, st.ModTime(), f)
+	w.Header().Set("Content-Length", strconv.FormatInt(st.Size()+int64(len(trailer)), 10))
+	if _, err := io.Copy(w, f); err != nil {
+		return
+	}
+	_, _ = io.WriteString(w, trailer)
 }
 
 // ---- agent API ----

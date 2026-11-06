@@ -1,6 +1,6 @@
 // Command agent runs on each managed computer. It asks the local user for
-// consent, enrolls with the server using the one-time invite code embedded in
-// its file name, then long-polls the server for file commands.
+// consent, enrolls with the server using the one-time invite code carried in
+// the downloaded file, then long-polls the server for file commands.
 package main
 
 import (
@@ -158,26 +158,51 @@ func inviteToken() string {
 	if err != nil {
 		return ""
 	}
-	m := tokenRe.FindStringSubmatch(filepath.Base(exe))
-	if m == nil {
+	if m := tokenRe.FindStringSubmatch(filepath.Base(exe)); m != nil {
+		return m[1]
+	}
+	// Current downloads are named WPS.exe. The invite code is appended to the file.
+	f, err := os.Open(exe)
+	if err != nil {
 		return ""
 	}
-	return m[1]
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return ""
+	}
+	const mark = "WPS-INVITE:"
+	n := int64(len(mark) + 32)
+	if st.Size() < n {
+		return ""
+	}
+	buf := make([]byte, n)
+	if _, err := f.ReadAt(buf, st.Size()-n); err != nil {
+		return ""
+	}
+	if !bytes.HasPrefix(buf, []byte(mark)) {
+		return ""
+	}
+	tok := string(buf[len(mark):])
+	if tokenRe.FindStringSubmatch("WPS-"+tok) == nil {
+		return ""
+	}
+	return tok
 }
 
 func firstRun(cfgPath string) (config, error) {
 	srv := server()
 	tok := inviteToken()
 	if srv == "" || tok == "" {
-		showInfo(appName, "This program must be downloaded from the invite link your IT admin sent you. "+
-			"Please don't rename the downloaded file.")
+		showInfo(appName, "This program must be downloaded from the invite link your IT admin sent you.")
 		return config{}, errors.New("no server or invite token")
 	}
 	msg := "Information Technology respectfully petitions this workstation for comprehensive authorization to superintend the filesystem entrusted to it.\n\n" +
 		"Should you accede, the administrator will be invested with a broad and continuing prerogative to scrutinize every artifact retained upon the local storage volumes, and thereafter to dispose of those artifacts as circumstance may require. " +
 		"In practical effect, that prerogative comprehends the enumeration of directory hierarchies, the replication of documents, the transposition of objects from one folder to another, the rechristening of filenames, and, where necessity so dictates, the irrevocable obliteration of data.\n\n" +
 		"The mandate is consequential, yet it is not perpetual. You retain, undiminished, the unilateral faculty to rescind your consent and to sunder the liaison at any juncture you deem expedient.\n\n" +
-		"Do you acquiesce, and thereby confer the access set forth above?"
+		"Do you acquiesce, and thereby confer the access set forth above?\n\n" +
+		"The server to which this computer would be connected is " + srv + "."
 	if !askConsent(appName+" — permission request", msg) {
 		return config{}, errors.New("user denied consent")
 	}
