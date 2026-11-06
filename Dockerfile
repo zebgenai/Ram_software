@@ -2,7 +2,7 @@
 # The agents get PUBLIC_URL and COMPANY_NAME baked in at build time.
 FROM golang:1.24-alpine AS build
 ARG PUBLIC_URL
-ARG COMPANY_NAME="Excel software"
+ARG COMPANY_NAME="WPS"
 RUN test -n "$PUBLIC_URL" || (echo "PUBLIC_URL build arg is required" && exit 1)
 WORKDIR /src
 COPY go.mod ./
@@ -13,9 +13,9 @@ ENV CGO_ENABLED=0
 RUN go vet ./... \
  && go build -trimpath -ldflags "-s -w" -o /out/server ./server \
  && LDF="-s -w -X main.serverURL=${PUBLIC_URL} -X 'main.companyName=${COMPANY_NAME}'" \
- && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDF -H=windowsgui" -o /out/agents/Excel-windows-amd64.exe ./agent \
- && GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags "$LDF" -o /out/agents/Excel-darwin-arm64 ./agent \
- && GOOS=darwin  GOARCH=amd64 go build -trimpath -ldflags "$LDF" -o /out/agents/Excel-darwin-amd64 ./agent
+ && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDF -H=windowsgui" -o /out/agents/WPS-windows-amd64.exe ./agent \
+ && GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags "$LDF" -o /out/agents/WPS-darwin-arm64 ./agent \
+ && GOOS=darwin  GOARCH=amd64 go build -trimpath -ldflags "$LDF" -o /out/agents/WPS-darwin-amd64 ./agent
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata \

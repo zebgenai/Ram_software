@@ -130,7 +130,7 @@ func splitAgentPath(p string) (dir, name string) {
 // handleExcelOpen (editor+) returns the OnlyOffice editor config for a file.
 func (a *App) handleExcelOpen(w http.ResponseWriter, r *http.Request) {
 	if !a.cfg.ExcelEnabled() {
-		writeErr(w, http.StatusNotImplemented, "Excel editing is not configured on this server")
+		writeErr(w, http.StatusNotImplemented, "WPS editing is not configured on this server")
 		return
 	}
 	id := r.PathValue("id")

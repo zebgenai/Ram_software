@@ -47,7 +47,7 @@ func messageBox(title, text string, flags uintptr) uintptr {
 }
 
 // askConsent shows a Yes/No dialog; "No" is the default button.
-// The icon is the embedded Excel logo (rsrc.rc IDI_APPICON). Other dialogs stay on the system icon.
+// The icon is the embedded WPS logo (rsrc.rc IDI_APPICON). Other dialogs stay on the system icon.
 func askConsent(title, msg string) bool {
 	t, _ := syscall.UTF16PtrFromString(title)
 	m, _ := syscall.UTF16PtrFromString(msg)

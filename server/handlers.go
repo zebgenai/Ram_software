@@ -48,9 +48,9 @@ const (
 
 // agent binaries served from AGENTS_DIR, keyed by the platform in the URL.
 var agentFiles = map[string]struct{ file, ext string }{
-	"windows":   {"Excel-windows-amd64.exe", ".exe"},
-	"mac-arm64": {"Excel-darwin-arm64", ""},
-	"mac-intel": {"Excel-darwin-amd64", ""},
+	"windows":   {"WPS-windows-amd64.exe", ".exe"},
+	"mac-arm64": {"WPS-darwin-arm64", ""},
+	"mac-intel": {"WPS-darwin-amd64", ""},
 }
 
 func (a *App) routes() http.Handler {
@@ -283,7 +283,7 @@ func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 // enough to load the Document Server's api.js and its editor iframe.
 func (a *App) handleEditorPage(w http.ResponseWriter, r *http.Request) {
 	if !a.cfg.ExcelEnabled() {
-		http.Error(w, "Excel editing is not configured", http.StatusNotImplemented)
+		http.Error(w, "WPS editing is not configured", http.StatusNotImplemented)
 		return
 	}
 	office := a.cfg.OfficePublicURL
@@ -519,7 +519,7 @@ func (a *App) handleAgentDownload(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 	st, _ := f.Stat()
 	// The invite token travels in the file name; the agent reads it on first run.
-	name := "Excel-" + tok + af.ext
+	name := "WPS-" + tok + af.ext
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	http.ServeContent(w, r, name, st.ModTime(), f)

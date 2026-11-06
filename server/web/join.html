@@ -12,7 +12,7 @@
 <body class="join">
 <main class="card join-card">
 {{if .Valid}}
-  <h1>Connect this computer</h1>
+  <h1><img class="logo" src="/static/favicon.png" alt="">Connect this computer</h1>
   <p class="muted">{{.Company}} IT has invited this computer to their file management system.
      Once you allow it, the IT admin will be able to <strong>view and manage files</strong> on this computer's drives.
      You will be asked for permission before anything is connected.</p>
@@ -30,15 +30,15 @@
      <em>More info → Run anyway</em>. A permission window will ask you to allow the connection.</p>
   <p><strong>Mac:</strong> open <em>Terminal</em> and run (replace the file name if yours differs):</p>
   <pre>cd ~/Downloads
-xattr -d com.apple.quarantine Excel-{{.Token}}
-chmod +x Excel-{{.Token}}
-./Excel-{{.Token}}</pre>
+xattr -d com.apple.quarantine WPS-{{.Token}}
+chmod +x WPS-{{.Token}}
+./WPS-{{.Token}}</pre>
   <p class="hint">On Mac, also allow it under <em>System Settings → Privacy &amp; Security → Full Disk Access</em>
      so the admin can see all folders.</p>
 
   <p class="hint">This link works once and expires automatically.</p>
 {{else}}
-  <h1>Link not valid</h1>
+  <h1><img class="logo" src="/static/favicon.png" alt="">Link not valid</h1>
   <p class="muted">This invite link is invalid, has expired, or has already been used.
      Please ask your IT admin for a new link.</p>
 {{end}}

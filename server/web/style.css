@@ -28,7 +28,9 @@ label { display: grid; gap: 4px; margin-bottom: 12px; font-weight: 500; }
 .login-card .btn { width: 100%; }
 
 .topbar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
-.brand { font-weight: 700; } .tabs { display: flex; gap: 4px; flex: 1; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; } .tabs { display: flex; gap: 4px; flex: 1; }
+.logo { width: 28px; height: 28px; border-radius: 6px; vertical-align: middle; margin-right: 8px; }
+.brand .logo { margin-right: 0; }
 .tab { border: 0; background: none; color: var(--muted); padding: 8px 12px; border-radius: 8px; cursor: pointer; font: inherit; }
 .tab.active { color: var(--text); background: var(--hover); font-weight: 600; }
 main { padding: 16px; }

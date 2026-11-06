@@ -473,7 +473,7 @@ function showCtx(x, y, e) {
   };
   const kids = [];
   if (!e.dir && state.me.excel && canEdit() && isSheet(e.name))
-    kids.push(item("Edit in Excel", () => openExcel(e)));
+    kids.push(item("Edit in WPS", () => openExcel(e)));
   if (!e.dir) kids.push(item("⬇ Download", () => $("#act-download").click()));
   if (canEdit()) {
     kids.push(item("Rename", () => $("#act-rename").click()));
