@@ -1,0 +1,8 @@
+# Binary files: never apply end-of-line / text conversion (keeps .syso and
+# image assets byte-exact across Windows/Linux checkouts).
+*.syso binary
+*.ico  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.exe  binary
