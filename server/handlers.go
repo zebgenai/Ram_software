@@ -79,6 +79,9 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/devices/{id}/drives", a.viewer(a.handleDrives))
 	mux.HandleFunc("GET /api/devices/{id}/list", a.viewer(a.handleList))
 	mux.HandleFunc("GET /api/devices/{id}/lockstate", a.viewer(a.handleLockState))
+	mux.HandleFunc("GET /api/devices/{id}/search", a.viewer(a.handleSearch))
+	mux.HandleFunc("GET /api/devices/{id}/zip", a.viewer(a.handleZipDownload))
+	mux.HandleFunc("POST /api/devices/{id}/unzip", a.editor(a.handleUnzip))
 	mux.HandleFunc("GET /api/devices/{id}/download", a.viewer(a.handleDownload))
 	// change files: editor and up
 	mux.HandleFunc("POST /api/devices/{id}/mkdir", a.editor(a.handleMkdir))
@@ -406,6 +409,27 @@ func (a *App) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.callDevice(w, r, "list", proto.MethodList, p, proto.ListParams{Path: p})
+}
+
+// handleSearch finds files by name under a folder on the PC.
+func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
+	p := r.URL.Query().Get("path")
+	q := r.URL.Query().Get("q")
+	if p == "" || q == "" || len(p) > 4096 || len(q) > 256 {
+		writeErr(w, http.StatusBadRequest, "path and q required")
+		return
+	}
+	a.callDevice(w, r, "search", proto.MethodSearch, p, proto.SearchParams{Dir: p, Query: q, Max: 500})
+}
+
+// handleUnzip extracts a .zip already on the PC into its folder.
+func (a *App) handleUnzip(w http.ResponseWriter, r *http.Request) {
+	var p proto.UnzipParams
+	if err := readJSON(w, r, 8192, &p); err != nil || p.Path == "" {
+		writeErr(w, http.StatusBadRequest, "path required")
+		return
+	}
+	a.callDevice(w, r, "unzip", proto.MethodUnzip, p.Path, p)
 }
 
 // handleLockState reports whether a file is currently open (locked) on the PC.

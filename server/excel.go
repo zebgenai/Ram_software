@@ -98,15 +98,21 @@ func (e *ExcelSessions) get(id string) (*excelSession, bool) {
 	return s, ok
 }
 
-// ---- supported spreadsheet types ----
+// ---- supported document types (OnlyOffice documentType by extension) ----
 
-var excelExts = map[string]bool{
-	".xlsx": true, ".xlsm": true, ".xls": true, ".csv": true, ".ods": true,
+var docTypes = map[string]string{
+	".xlsx": "cell", ".xlsm": "cell", ".xls": "cell", ".csv": "cell", ".ods": "cell",
+	".docx": "word", ".doc": "word", ".odt": "word", ".rtf": "word", ".txt": "word",
+	".pptx": "slide", ".ppt": "slide", ".odp": "slide",
+	".pdf": "pdf",
 }
 
-func isSpreadsheet(name string) bool {
-	return excelExts[strings.ToLower(path.Ext(name))]
+// docTypeFor returns the OnlyOffice documentType for a file, or "" if unsupported.
+func docTypeFor(name string) string {
+	return docTypes[strings.ToLower(path.Ext(name))]
 }
+
+func isEditableDoc(name string) bool { return docTypeFor(name) != "" }
 
 // splitAgentPath splits an agent file path (Windows or Unix) into a directory
 // and a separator-free file name, keeping the trailing separator for a drive
@@ -139,8 +145,8 @@ func (a *App) handleExcelOpen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := r.URL.Query().Get("path")
-	if p == "" || !isSpreadsheet(p) {
-		writeErr(w, http.StatusBadRequest, "a spreadsheet file path is required")
+	if p == "" || !isEditableDoc(p) {
+		writeErr(w, http.StatusBadRequest, "an editable document path is required")
 		return
 	}
 	if !a.hub.Online(id) {
@@ -173,7 +179,7 @@ func (a *App) handleExcelOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	config := map[string]any{
 		"document":     document,
-		"documentType": "cell",
+		"documentType": docTypeFor(name),
 		"editorConfig": editorConfig,
 		"type":         "desktop",
 	}

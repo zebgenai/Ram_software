@@ -16,7 +16,10 @@ const (
 	MethodDelete = "delete"
 	MethodFetch  = "fetch" // download: agent pushes file bytes to the server
 	MethodStore  = "store" // upload: agent pulls file bytes from the server
-	MethodStat   = "stat"  // report whether a file exists and is open/locked on the PC
+	MethodStat   = "stat"     // report whether a file exists and is open/locked on the PC
+	MethodSearch = "search"   // find files by name under a folder
+	MethodZip    = "fetchzip" // stream a folder to the server as a .zip
+	MethodUnzip  = "unzip"    // extract a .zip already on the PC into its folder
 )
 
 // Request is a command the server queues for an agent.
@@ -80,6 +83,30 @@ type RenameParams struct {
 type TransferParams struct {
 	Src    string `json:"src"`
 	DstDir string `json:"dstDir"`
+}
+
+// SearchParams asks the agent to find files by name under Dir.
+type SearchParams struct {
+	Dir   string `json:"dir"`
+	Query string `json:"query"`
+	Max   int    `json:"max"`
+}
+
+// SearchResult is the matches (newest-first not guaranteed) plus a truncated flag.
+type SearchResult struct {
+	Entries   []Entry `json:"entries"`
+	Truncated bool    `json:"truncated"`
+}
+
+// ZipParams asks the agent to stream Dir to the server as a .zip for job JobID.
+type ZipParams struct {
+	JobID string `json:"jobId"`
+	Dir   string `json:"dir"`
+}
+
+// UnzipParams asks the agent to extract a .zip already on the PC into its folder.
+type UnzipParams struct {
+	Path string `json:"path"`
 }
 
 // StatParams asks the agent about one file.

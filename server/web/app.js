@@ -5,8 +5,10 @@ const state = { devices: [], current: null, path: "", parent: "", timer: null, s
 
 const isAdmin = () => state.me.role === "admin";
 const canEdit = () => state.me.role === "admin" || state.me.role === "editor";
-const SHEET_EXT = /\.(xlsx|xlsm|xls|csv|ods)$/i;
-const isSheet = (name) => SHEET_EXT.test(name || "");
+const DOC_EXT = /\.(xlsx|xlsm|xls|csv|ods|docx|doc|odt|rtf|txt|pptx|ppt|odp|pdf)$/i;
+const isEditable = (name) => DOC_EXT.test(name || "");
+const PREVIEW_EXT = /\.(png|jpe?g|gif|webp|bmp|pdf|txt|log|csv|json|md|xml|ini|ya?ml)$/i;
+const canPreview = (name) => PREVIEW_EXT.test(name || "");
 
 async function api(method, url, body) {
   const opts = { method, headers: { "X-Requested-With": "rf" }, credentials: "same-origin" };
@@ -206,7 +208,7 @@ function syncToolbar() {
   const excelBtn = $("#act-excel");
   const canExcel = state.me.excel && canEdit();
   excelBtn.hidden = !canExcel;
-  excelBtn.disabled = !(canExcel && n === 1 && only && !only.dir && isSheet(only.name));
+  excelBtn.disabled = !(canExcel && n === 1 && only && !only.dir && isEditable(only.name));
   $("#act-rename").disabled = n !== 1;
   $("#act-copy").disabled = n === 0;
   $("#act-move").disabled = n === 0;
@@ -371,9 +373,61 @@ async function transferTo(kind) {
   if (failed.length) showBrowseError("Some items failed — " + failed.join("; "));
 }
 
+// ---- preview ----
+function previewFile(e) {
+  if (!e || e.dir) return;
+  const q = `path=${encodeURIComponent(e.path)}&inline=1`;
+  window.open(`/api/devices/${encodeURIComponent(state.current)}/download?${q}`, "_blank", "noopener");
+}
+
+// ---- folder zip / extract ----
+function downloadZip(e) {
+  if (!e || !e.dir) return;
+  window.open(`/api/devices/${encodeURIComponent(state.current)}/zip?path=${encodeURIComponent(e.path)}`, "_blank", "noopener");
+}
+async function extractZip(e) {
+  if (!e || e.dir) return;
+  try {
+    await api("POST", `/api/devices/${state.current}/unzip`, { path: e.path });
+    browse(state.path);
+  } catch (err) { showBrowseError(err.message); }
+}
+
+// ---- search ----
+function parentDir(p) {
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  if (i <= 0) return p;
+  const d = p.slice(0, i);
+  return /:$/.test(d) ? d + "\\" : d;
+}
+async function runSearch() {
+  const q = $("#file-search").value.trim();
+  if (!q) { if (state.path) browse(state.path); return; }
+  if (!state.path) return;
+  const rows = $("#file-rows");
+  rows.replaceChildren(el("tr", {}, el("td", { colspan: "4", class: "muted" }, "Searching…")));
+  try {
+    const res = await api("GET", `/api/devices/${state.current}/search?path=${encodeURIComponent(state.path)}&q=${encodeURIComponent(q)}`);
+    const items = res.entries || [];
+    if (!items.length) { rows.replaceChildren(el("tr", {}, el("td", { colspan: "4", class: "muted" }, "No matches."))); return; }
+    rows.replaceChildren(...items.map((e) => {
+      const tr = el("tr", { class: "searchrow" },
+        el("td", {}, ""),
+        el("td", { class: "fname" }, (e.dir ? "📁 " : "📄 ") + e.path),
+        el("td", { class: "num" }, e.dir ? "" : fmtSize(e.size)),
+        el("td", {}, fmtTime(e.modTime)));
+      tr.addEventListener("click", () => { $("#file-search").value = ""; browse(e.dir ? e.path : parentDir(e.path)); });
+      return tr;
+    }));
+    $("#truncated").hidden = !res.truncated;
+  } catch (err) { rows.replaceChildren(el("tr", {}, el("td", { colspan: "4", class: "error" }, err.message))); }
+}
+$("#file-search-btn").addEventListener("click", runSearch);
+$("#file-search").addEventListener("keydown", (ev) => { if (ev.key === "Enter") runSearch(); });
+
 // ---- Excel editing ----
 function openExcel(e) {
-  if (!e || e.dir || !isSheet(e.name)) return;
+  if (!e || e.dir || !isEditable(e.name)) return;
   const q = `device=${encodeURIComponent(state.current)}&path=${encodeURIComponent(e.path)}&name=${encodeURIComponent(e.name)}`;
   window.open(`/excel/editor?${q}`, "_blank", "noopener");
 }
@@ -490,8 +544,11 @@ function showCtx(x, y, e) {
     return li;
   };
   const kids = [];
-  if (!e.dir && state.me.excel && canEdit() && isSheet(e.name))
-    kids.push(item("Edit in Excel", () => openExcel(e)));
+  if (!e.dir && state.me.excel && canEdit() && isEditable(e.name))
+    kids.push(item("Edit", () => openExcel(e)));
+  if (!e.dir && canPreview(e.name)) kids.push(item("👁 Preview", () => previewFile(e)));
+  if (e.dir) kids.push(item("⬇ Download ZIP", () => downloadZip(e)));
+  if (!e.dir && canEdit() && /\.zip$/i.test(e.name)) kids.push(item("Extract here", () => extractZip(e)));
   if (!e.dir) kids.push(item("⬇ Download", () => $("#act-download").click()));
   if (canEdit()) {
     kids.push(item("Rename", () => $("#act-rename").click()));
@@ -637,18 +694,30 @@ $("#copy-invite").addEventListener("click", async () => {
 });
 
 // ---- audit ----
+let auditItems = [];
 async function loadAudit() {
   const rows = $("#audit-rows");
   try {
-    const items = await api("GET", "/api/audit");
-    const names = Object.fromEntries(state.devices.map((d) => [d.id, d.name || d.hostname]));
-    rows.replaceChildren(...items.map((a) => el("tr", {},
-      el("td", {}, fmtTime(a.time)), el("td", {}, a.actor), el("td", {}, a.ip), el("td", {}, a.action),
-      el("td", {}, a.device ? names[a.device] || a.device : ""), el("td", { class: "fname" }, a.path || ""),
-      el("td", { class: a.ok ? "ok" : "error" }, a.ok ? "OK" : a.error || "failed"))));
+    auditItems = await api("GET", "/api/audit");
+    renderAudit();
   } catch (err) { rows.replaceChildren(el("tr", {}, el("td", { colspan: "7", class: "error" }, err.message))); }
 }
+function renderAudit() {
+  const rows = $("#audit-rows");
+  const q = ($("#audit-search").value || "").trim().toLowerCase();
+  const names = Object.fromEntries(state.devices.map((d) => [d.id, d.name || d.hostname]));
+  const items = auditItems.filter((a) => {
+    if (!q) return true;
+    const dev = a.device ? names[a.device] || a.device : "";
+    return [a.actor, a.ip, a.action, dev, a.path, a.error].join(" ").toLowerCase().includes(q);
+  });
+  rows.replaceChildren(...items.map((a) => el("tr", {},
+    el("td", {}, fmtTime(a.time)), el("td", {}, a.actor), el("td", {}, a.ip), el("td", {}, a.action),
+    el("td", {}, a.device ? names[a.device] || a.device : ""), el("td", { class: "fname" }, a.path || ""),
+    el("td", { class: a.ok ? "ok" : "error" }, a.ok ? "OK" : a.error || "failed"))));
+}
 $("#audit-refresh").addEventListener("click", loadAudit);
+$("#audit-search").addEventListener("input", renderAudit);
 
 // ---- users ----
 const roleLabel = { admin: "Admin", editor: "Editor", viewer: "Viewer" };

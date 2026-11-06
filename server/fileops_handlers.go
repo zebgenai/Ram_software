@@ -71,6 +71,89 @@ func (a *App) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 // ---- download: agent pushes bytes, we stream them to the admin ----
 
+// previewContentType returns a safe content type for inline browser preview, or
+// "" if the file must not be rendered inline (HTML/SVG are excluded so they
+// can't run scripts in the dashboard's origin).
+func previewContentType(name string) string {
+	switch strings.ToLower(path.Ext(name)) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".bmp":
+		return "image/bmp"
+	case ".pdf":
+		return "application/pdf"
+	case ".txt", ".log", ".csv", ".json", ".md", ".xml", ".ini", ".yaml", ".yml":
+		return "text/plain; charset=utf-8"
+	}
+	return ""
+}
+
+// handleZipDownload streams a folder from the PC to the admin as a .zip.
+func (a *App) handleZipDownload(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := a.store.Device(id); !ok {
+		writeErr(w, http.StatusNotFound, "device not found")
+		return
+	}
+	p := r.URL.Query().Get("path")
+	if p == "" || len(p) > 4096 {
+		writeErr(w, http.StatusBadRequest, "path required")
+		return
+	}
+	if !a.hub.Online(id) {
+		writeErr(w, http.StatusServiceUnavailable, errOffline.Error())
+		return
+	}
+	jobID, x := a.transfers.newDownload(id)
+	defer a.transfers.remove(jobID)
+
+	entry := AuditEntry{Actor: actor(r), IP: clientIP(r), Action: "zip-download", Device: id, Path: p}
+	if err := a.hub.Send(id, proto.Request{ID: randHex(8), Method: proto.MethodZip,
+		Params: mustJSON(proto.ZipParams{JobID: jobID, Dir: p})}); err != nil {
+		entry.Error = err.Error()
+		a.audit.Log(entry)
+		writeErr(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	var meta dlMeta
+	select {
+	case meta = <-x.meta:
+	case <-time.After(transferConnectTimeout):
+		x.pw.CloseWithError(errTimeout)
+		entry.Error = errTimeout.Error()
+		a.audit.Log(entry)
+		writeErr(w, http.StatusGatewayTimeout, "the PC did not respond in time")
+		return
+	case <-r.Context().Done():
+		x.pw.CloseWithError(errors.New("admin cancelled"))
+		return
+	}
+	if meta.err != nil {
+		entry.Error = meta.err.Error()
+		a.audit.Log(entry)
+		writeErr(w, http.StatusBadGateway, meta.err.Error())
+		return
+	}
+	name := meta.name
+	if name == "" {
+		name = path.Base(p) + ".zip"
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename*=UTF-8''`+url.PathEscape(name))
+	_, copyErr := io.Copy(w, x.pr)
+	entry.OK = copyErr == nil
+	if copyErr != nil {
+		entry.Error = copyErr.Error()
+	}
+	a.audit.Log(entry)
+}
+
 func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if _, ok := a.store.Device(id); !ok {
@@ -123,8 +206,17 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = path.Base(p)
 	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", `attachment; filename*=UTF-8''`+url.PathEscape(name))
+	// Inline preview (images / PDF / plain text) renders in the browser; anything
+	// else, or ?inline not set, downloads as an attachment.
+	if ct := previewContentType(name); r.URL.Query().Get("inline") == "1" && ct != "" {
+		entry.Action = "preview"
+		w.Header().Set("Content-Type", ct)
+		w.Header().Set("X-Content-Type-Options", "nosniff") // don't let text be sniffed as HTML
+		w.Header().Set("Content-Disposition", `inline; filename*=UTF-8''`+url.PathEscape(name))
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", `attachment; filename*=UTF-8''`+url.PathEscape(name))
+	}
 	if meta.size > 0 {
 		w.Header().Set("Content-Length", itoa(meta.size))
 	}

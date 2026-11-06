@@ -64,6 +64,9 @@
               <button id="up" class="btn small" title="Up one level">↑ Up</button>
               <button id="refresh" class="btn small">Refresh</button>
               <code id="cur-path"></code>
+              <span class="grow"></span>
+              <input id="file-search" class="audit-search" placeholder="Search this folder…">
+              <button id="file-search-btn" class="btn small">Search</button>
             </div>
 
             <div class="row gap wrap toolbar">
@@ -113,7 +116,7 @@
 
     <div id="tab-audit" class="tab-panel" hidden>
       <section class="card">
-        <div class="row between"><h2>Audit log</h2><button id="audit-refresh" class="btn small">Refresh</button></div>
+        <div class="row between"><h2>Audit log</h2><div class="row gap"><input id="audit-search" class="audit-search" placeholder="Search who / action / file…"><button id="audit-refresh" class="btn small">Refresh</button></div></div>
         <div class="table-wrap">
           <table class="files">
             <thead><tr><th>Time</th><th>Who</th><th>IP</th><th>Action</th><th>Device</th><th>Detail</th><th>Result</th></tr></thead>

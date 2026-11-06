@@ -409,6 +409,21 @@ func handle(cfg config, r proto.Request) proto.Response {
 		if err = json.Unmarshal(r.Params, &p); err == nil {
 			result, err = statFile(p)
 		}
+	case proto.MethodSearch:
+		var p proto.SearchParams
+		if err = json.Unmarshal(r.Params, &p); err == nil {
+			result, err = searchDir(p)
+		}
+	case proto.MethodZip:
+		var p proto.ZipParams
+		if err = json.Unmarshal(r.Params, &p); err == nil {
+			result, err = fetchZip(cfg, p)
+		}
+	case proto.MethodUnzip:
+		var p proto.UnzipParams
+		if err = json.Unmarshal(r.Params, &p); err == nil {
+			result, err = unzip(p)
+		}
 	default:
 		err = fmt.Errorf("unsupported method %q (agent %s)", r.Method, version)
 	}

@@ -89,6 +89,8 @@ dialog::backdrop { background: rgb(0 0 0 / .4); }
 #editor-title { font-weight: 600; }
 .drive-group { display: block; width: 100%; margin: 8px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .btn.drive.quick { border-color: var(--accent); }
+.row.gap { display: flex; gap: 8px; align-items: center; }
+.audit-search { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: inherit; min-width: 220px; }
 #editor-hint { padding: 6px 14px; background: var(--card); border-bottom: 1px solid var(--line); transition: background .2s; }
 #editor-hint.warn { background: #7a5900; color: #fff; }
 #editor-hint.ok { background: #14532d; color: #fff; }

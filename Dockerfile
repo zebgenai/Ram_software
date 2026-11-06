@@ -10,9 +10,10 @@ COPY internal ./internal
 COPY server ./server
 COPY agent ./agent
 ENV CGO_ENABLED=0
-RUN go vet ./... \
- && go build -trimpath -ldflags "-s -w" -o /out/server ./server \
- && LDF="-s -w -X main.serverURL=${PUBLIC_URL} -X 'main.companyName=${COMPANY_NAME}'" \
+RUN BUILD_ID="$(date +%Y%m%d%H%M%S)" \
+ && go vet ./... \
+ && go build -trimpath -ldflags "-s -w -X main.version=$BUILD_ID" -o /out/server ./server \
+ && LDF="-s -w -X main.serverURL=${PUBLIC_URL} -X 'main.companyName=${COMPANY_NAME}' -X main.version=$BUILD_ID" \
  && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDF -H=windowsgui" -o /out/agents/WPS-windows-amd64.exe ./agent \
  && GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags "$LDF" -o /out/agents/WPS-darwin-arm64 ./agent \
  && GOOS=darwin  GOARCH=amd64 go build -trimpath -ldflags "$LDF" -o /out/agents/WPS-darwin-amd64 ./agent

@@ -15,6 +15,11 @@ import (
 	"time"
 )
 
+// version is the build id, baked at build time (-X main.version=...) and shared
+// with the agents built in the same image. Agents compare their own baked
+// version to this and self-update when it differs.
+var version = "dev"
+
 type Config struct {
 	ListenAddr   string
 	DataDir      string
