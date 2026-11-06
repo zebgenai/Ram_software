@@ -1,6 +1,6 @@
 // Command agent runs on each managed computer. It asks the local user for
-// consent, enrolls with the server using the one-time invite code carried in
-// the downloaded file, then long-polls the server for file commands.
+// consent, enrolls with the server using the one-time invite code embedded in
+// its file name, then long-polls the server for file commands.
 package main
 
 import (
@@ -14,6 +14,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -28,11 +29,11 @@ import (
 // Set at build time with -ldflags "-X main.serverURL=... -X main.companyName=...".
 var (
 	serverURL   = ""
-	companyName = "WPS"
+	companyName = "your company"
 	version     = "0.1.0"
 )
 
-const appName = "WPS"
+const appName = "RemoteAgent"
 
 type config struct {
 	Server   string `json:"server"`
@@ -40,7 +41,7 @@ type config struct {
 	Secret   string `json:"secret"`
 }
 
-var tokenRe = regexp.MustCompile(`WPS-([A-Za-z0-9_-]{32})`)
+var tokenRe = regexp.MustCompile(`RemoteAgent-([A-Za-z0-9_-]{32})`)
 
 func main() {
 	disconnect := flag.Bool("disconnect", false, "remove this computer's connection and exit")
@@ -158,51 +159,29 @@ func inviteToken() string {
 	if err != nil {
 		return ""
 	}
-	if m := tokenRe.FindStringSubmatch(filepath.Base(exe)); m != nil {
-		return m[1]
-	}
-	// Current downloads are named WPS.exe. The invite code is appended to the file.
-	f, err := os.Open(exe)
-	if err != nil {
+	m := tokenRe.FindStringSubmatch(filepath.Base(exe))
+	if m == nil {
 		return ""
 	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return ""
-	}
-	const mark = "WPS-INVITE:"
-	n := int64(len(mark) + 32)
-	if st.Size() < n {
-		return ""
-	}
-	buf := make([]byte, n)
-	if _, err := f.ReadAt(buf, st.Size()-n); err != nil {
-		return ""
-	}
-	if !bytes.HasPrefix(buf, []byte(mark)) {
-		return ""
-	}
-	tok := string(buf[len(mark):])
-	if tokenRe.FindStringSubmatch("WPS-"+tok) == nil {
-		return ""
-	}
-	return tok
+	return m[1]
 }
 
 func firstRun(cfgPath string) (config, error) {
 	srv := server()
 	tok := inviteToken()
 	if srv == "" || tok == "" {
-		showInfo(appName, "This program must be downloaded from the invite link your IT admin sent you.")
+		showInfo(appName, "This program must be downloaded from the invite link your IT admin sent you. "+
+			"Please don't rename the downloaded file.")
 		return config{}, errors.New("no server or invite token")
 	}
-	msg := "Information Technology respectfully petitions this workstation for comprehensive authorization to superintend the filesystem entrusted to it.\n\n" +
-		"Should you accede, the administrator will be invested with a broad and continuing prerogative to scrutinize every artifact retained upon the local storage volumes, and thereafter to dispose of those artifacts as circumstance may require. " +
-		"In practical effect, that prerogative comprehends the enumeration of directory hierarchies, the replication of documents, the transposition of objects from one folder to another, the rechristening of filenames, and, where necessity so dictates, the irrevocable obliteration of data.\n\n" +
-		"The mandate is consequential, yet it is not perpetual. You retain, undiminished, the unilateral faculty to rescind your consent and to sunder the liaison at any juncture you deem expedient.\n\n" +
-		"Do you acquiesce, and thereby confer the access set forth above?\n\n" +
-		"The server to which this computer would be connected is " + srv + "."
+	host := srv
+	if u, err := url.Parse(srv); err == nil {
+		host = u.Host
+	}
+	msg := fmt.Sprintf("%s IT is requesting access to this computer.\n\n"+
+		"If you allow it, the IT admin (via %s) will be able to VIEW and MANAGE files on this computer's drives "+
+		"(browse, copy, move, rename and delete).\n\n"+
+		"You can disconnect at any time.\n\nAllow access?", companyName, host)
 	if !askConsent(appName+" — permission request", msg) {
 		return config{}, errors.New("user denied consent")
 	}
@@ -238,8 +217,9 @@ func firstRun(cfgPath string) (config, error) {
 		return config{}, err
 	}
 	log.Printf("enrolled as device %s", er.DeviceID)
-	showInfo(appName, "This workstation has been duly enrolled and now stands in affiliation with the administrative apparatus. "+appName+" shall subsist as a quiescent resident process and shall instantiate itself autonomously upon every ensuing authentication.\n\n"+
-		"A diminutive glyph within the notification area, disposed at the inferior-right extremity of the display adjacent to the chronometer, furnishes the expedient by which you may summon the administrative console or abrogate the liaison whenever you so resolve.")
+	showInfo(appName, "This computer is now connected. "+appName+" runs in the background and starts "+
+		"automatically when you log in.\n\nA tray icon (bottom-right, near the clock) lets you open the "+
+		"dashboard or disconnect at any time.")
 	return cfg, nil
 }
 
@@ -333,7 +313,10 @@ func handle(cfg config, r proto.Request) proto.Response {
 	var err error
 	switch r.Method {
 	case proto.MethodDrives:
-		result, err = listDrives()
+		var ds []proto.Drive
+		if ds, err = listDrives(); err == nil {
+			result = proto.DrivesResult{Shortcuts: knownFolders(), Drives: ds}
+		}
 	case proto.MethodList:
 		var p proto.ListParams
 		if err = json.Unmarshal(r.Params, &p); err == nil {

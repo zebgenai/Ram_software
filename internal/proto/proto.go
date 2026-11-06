@@ -37,6 +37,13 @@ type Drive struct {
 	Label string `json:"label"`
 }
 
+// DrivesResult is what the "drives" method returns: quick-access shortcuts to the
+// logged-in user's common folders (Desktop, Downloads, …) plus the real drives.
+type DrivesResult struct {
+	Shortcuts []Drive `json:"shortcuts,omitempty"`
+	Drives    []Drive `json:"drives"`
+}
+
 type ListParams struct {
 	Path string `json:"path"`
 }

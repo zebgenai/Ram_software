@@ -160,15 +160,33 @@ function showBrowseError(msg) {
   $("#browse-error").hidden = !msg;
 }
 
+// New agents return {shortcuts, drives}; older ones return a plain array.
+function splitDrives(data) {
+  if (Array.isArray(data)) return { shortcuts: [], drives: data };
+  return { shortcuts: data.shortcuts || [], drives: data.drives || [] };
+}
+
 async function loadDrives() {
   const box = $("#drives");
   box.replaceChildren(el("span", { class: "muted small" }, "Loading drives…"));
   showBrowseError("");
   try {
-    const drives = await api("GET", `/api/devices/${state.current}/drives`);
-    box.replaceChildren(...drives.map((d) =>
-      el("button", { class: "btn small drive", onclick: () => browse(d.path) }, d.label || d.path)));
-    if (drives.length && !state.path) browse(drives[0].path);
+    const data = await api("GET", `/api/devices/${state.current}/drives`);
+    const { shortcuts, drives } = splitDrives(data);
+    const items = [];
+    if (shortcuts.length) {
+      items.push(el("span", { class: "drive-group" }, "Quick access"));
+      items.push(...shortcuts.map((d) =>
+        el("button", { class: "btn small drive quick", onclick: () => browse(d.path) }, d.label || d.path)));
+    }
+    if (drives.length) {
+      items.push(el("span", { class: "drive-group" }, "Drives"));
+      items.push(...drives.map((d) =>
+        el("button", { class: "btn small drive", onclick: () => browse(d.path) }, d.label || d.path)));
+    }
+    box.replaceChildren(...items);
+    const first = drives[0] || shortcuts[0];
+    if (first && !state.path) browse(first.path);
   } catch (err) {
     box.replaceChildren();
     showBrowseError(err.message);
@@ -473,7 +491,7 @@ function showCtx(x, y, e) {
   };
   const kids = [];
   if (!e.dir && state.me.excel && canEdit() && isSheet(e.name))
-    kids.push(item("Edit in WPS", () => openExcel(e)));
+    kids.push(item("Edit in Excel", () => openExcel(e)));
   if (!e.dir) kids.push(item("⬇ Download", () => $("#act-download").click()));
   if (canEdit()) {
     kids.push(item("Rename", () => $("#act-rename").click()));
@@ -512,8 +530,9 @@ async function destLoadDrives() {
   const box = $("#dest-drives");
   box.replaceChildren(el("span", { class: "muted small" }, "Loading…"));
   try {
-    const drives = await api("GET", `/api/devices/${state.current}/drives`);
-    box.replaceChildren(...drives.map((d) =>
+    const data = await api("GET", `/api/devices/${state.current}/drives`);
+    const { shortcuts, drives } = splitDrives(data);
+    box.replaceChildren(...[...shortcuts, ...drives].map((d) =>
       el("button", { class: "btn small", onclick: () => destBrowse(d.path) }, d.label || d.path)));
   } catch (err) { box.replaceChildren(); destErr(err.message); }
 }
