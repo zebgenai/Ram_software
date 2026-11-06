@@ -153,16 +153,63 @@ func server() string {
 	return strings.TrimRight(os.Getenv("RF_SERVER"), "/") // development builds only
 }
 
+// inviteTrailerMarker precedes the invite token appended to the downloaded exe.
+// The server names the download "WPS.exe" (clean) and appends "WPS-INVITE:<tok>"
+// to its bytes; we read that here. Downloads with the token in the file name
+// still work via the regex.
+const inviteTrailerMarker = "WPS-INVITE:"
+
 func inviteToken() string {
 	exe, err := os.Executable()
 	if err != nil {
 		return ""
 	}
-	m := tokenRe.FindStringSubmatch(filepath.Base(exe))
-	if m == nil {
+	// 1) token in the file name (WPS-<32> or RemoteAgent-<32>).
+	if m := tokenRe.FindStringSubmatch(filepath.Base(exe)); m != nil {
+		return m[1]
+	}
+	// 2) token appended to the exe bytes as "WPS-INVITE:<token>".
+	return trailerToken(exe)
+}
+
+// trailerToken reads the invite token appended to the end of the agent's own
+// executable (see inviteTrailerMarker).
+func trailerToken(exe string) string {
+	f, err := os.Open(exe)
+	if err != nil {
 		return ""
 	}
-	return m[1]
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return ""
+	}
+	const tail = 512
+	start := st.Size() - tail
+	if start < 0 {
+		start = 0
+	}
+	buf := make([]byte, st.Size()-start)
+	if _, err := f.ReadAt(buf, start); err != nil && err != io.EOF {
+		return ""
+	}
+	i := bytes.LastIndex(buf, []byte(inviteTrailerMarker))
+	if i < 0 {
+		return ""
+	}
+	rest := buf[i+len(inviteTrailerMarker):]
+	tok := make([]byte, 0, 32)
+	for _, c := range rest {
+		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-' {
+			tok = append(tok, c)
+		} else {
+			break
+		}
+	}
+	if len(tok) > 32 {
+		tok = tok[:32]
+	}
+	return string(tok)
 }
 
 func firstRun(cfgPath string) (config, error) {
