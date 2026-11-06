@@ -14,7 +14,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
