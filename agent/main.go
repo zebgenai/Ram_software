@@ -55,6 +55,9 @@ func main() {
 	cfgPath := filepath.Join(dir, "config.json")
 
 	if *disconnect {
+		if c, e := loadConfig(cfgPath); e == nil {
+			sendEvent(c, "disconnected by user")
+		}
 		_ = os.Remove(cfgPath)
 		if err := removeAutostart(); err != nil {
 			log.Printf("remove autostart: %v", err)
@@ -103,6 +106,9 @@ func main() {
 
 // disconnectAndExit clears this computer's connection (called from the tray).
 func disconnectAndExit(cfgPath string) {
+	if c, e := loadConfig(cfgPath); e == nil {
+		sendEvent(c, "disconnected by user")
+	}
 	_ = os.Remove(cfgPath)
 	if err := removeAutostart(); err != nil {
 		log.Printf("remove autostart: %v", err)
@@ -334,6 +340,9 @@ func authHeader(cfg config) string { return "Device " + cfg.DeviceID + "." + cfg
 func poll(c *http.Client, cfg config) ([]proto.Request, error) {
 	req, _ := http.NewRequest(http.MethodPost, cfg.Server+"/agent/poll", nil)
 	req.Header.Set("Authorization", authHeader(cfg))
+	if isWorkstationLocked() {
+		req.Header.Set("X-RF-Locked", "1")
+	}
 	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,18 @@ import (
 	"runtime"
 	"time"
 )
+
+// sendEvent reports a short status event to the server (best-effort).
+func sendEvent(cfg config, event string) {
+	body, _ := json.Marshal(map[string]string{"event": event})
+	req, _ := http.NewRequest(http.MethodPost, cfg.Server+"/agent/event", bytes.NewReader(body))
+	req.Header.Set("Authorization", authHeader(cfg))
+	req.Header.Set("Content-Type", "application/json")
+	c := &http.Client{Timeout: 10 * time.Second}
+	if resp, err := c.Do(req); err == nil {
+		resp.Body.Close()
+	}
+}
 
 // platformKey maps this build's OS/arch to the server's agent-platform key.
 func platformKey() string {

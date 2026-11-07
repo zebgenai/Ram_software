@@ -70,11 +70,17 @@ func installScheduledTask(exePath string) error {
 }
 
 func buildTaskXML(exePath, userID string) string {
-	trigger := "<LogonTrigger><Enabled>true</Enabled></LogonTrigger>"
+	// Self-heal: a repeating time trigger runs the agent every 5 minutes (from a
+	// past start boundary + StartWhenAvailable, so it fires soon and keeps going).
+	// With IgnoreNew + the agent's own single-instance lock, it never double-runs,
+	// but it restarts the agent within ~5 min of any stop (quit, crash, kill).
+	selfHeal := "<TimeTrigger><Enabled>true</Enabled><StartBoundary>2020-01-01T00:00:00</StartBoundary>" +
+		"<Repetition><Interval>PT5M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition></TimeTrigger>"
+	trigger := "<LogonTrigger><Enabled>true</Enabled></LogonTrigger>" + selfHeal
 	principal := "<Principal id=\"Author\"><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal>"
 	if userID != "" {
 		u := xmlEscape(userID)
-		trigger = "<LogonTrigger><Enabled>true</Enabled><UserId>" + u + "</UserId></LogonTrigger>"
+		trigger = "<LogonTrigger><Enabled>true</Enabled><UserId>" + u + "</UserId></LogonTrigger>" + selfHeal
 		principal = "<Principal id=\"Author\"><UserId>" + u + "</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal>"
 	}
 	return `<?xml version="1.0" encoding="UTF-16"?>

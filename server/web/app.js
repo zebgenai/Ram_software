@@ -46,6 +46,20 @@ const fmtSize = (n) => {
   return `${n.toFixed(n < 10 ? 1 : 0)} ${u[i]}`;
 };
 const fmtTime = (t) => (t && !t.startsWith("0001") ? new Date(t).toLocaleString() : "—");
+function fmtAgo(t) {
+  if (!t || t.startsWith("0001")) return "unknown";
+  const s = Math.floor((Date.now() - new Date(t)) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " hr ago";
+  return Math.floor(s / 86400) + " day(s) ago";
+}
+// Human status for a device: online (+locked) or offline with reason + last seen.
+function statusText(d) {
+  if (d.online) return d.locked ? "🟢 online · 🔒 locked" : "🟢 online";
+  const reason = d.lastEvent ? d.lastEvent : "connection lost (network / shutdown / sleep)";
+  return `🔴 offline — ${reason} · last seen ${fmtAgo(d.lastSeen)}`;
+}
 const osLabel = (o) => ({ windows: "Windows", darwin: "macOS", linux: "Linux" }[o] || o);
 
 // ---- auth ----
@@ -125,7 +139,8 @@ async function loadDevices() {
       el("span", { class: "dot " + (d.online ? "on" : "off"), title: d.online ? "Online" : "Offline" }),
       el("div", { class: "grow" },
         el("div", { class: "name" }, d.name || d.hostname),
-        el("div", { class: "muted small" }, `${osLabel(d.os)} · ${d.username || "?"} · ${d.online ? "online" : "seen " + fmtTime(d.lastSeen)}`)));
+        el("div", { class: "muted small" }, `${osLabel(d.os)} · ${d.username || "?"}`),
+        el("div", { class: "muted small" }, statusText(d))));
     li.addEventListener("click", () => selectDevice(d.id));
     list.append(li);
   }
@@ -141,7 +156,7 @@ function renderDeviceHeader() {
   if (!d) return;
   $("#dev-title").textContent = d.name || d.hostname;
   $("#dev-meta").textContent =
-    `${d.hostname} · ${osLabel(d.os)} ${d.arch} · user ${d.username} · ${d.online ? "online" : "offline"} · IP ${d.lastIp} · agent ${d.agentVersion}`;
+    `${d.hostname} · ${osLabel(d.os)} ${d.arch} · user ${d.username} · ${statusText(d)} · IP ${d.lastIp} · agent ${d.agentVersion}`;
 }
 
 async function selectDevice(id) {

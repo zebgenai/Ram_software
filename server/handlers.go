@@ -113,6 +113,9 @@ func (a *App) routes() http.Handler {
 
 	// agent API
 	mux.HandleFunc("POST /agent/enroll", a.handleEnroll)
+	mux.HandleFunc("GET /agent/version", a.handleAgentVersion)
+	mux.HandleFunc("GET /agent/update/{platform}", a.handleAgentUpdate)
+	mux.HandleFunc("POST /agent/event", a.handleAgentEvent)
 	mux.HandleFunc("POST /agent/poll", a.handlePoll)
 	mux.HandleFunc("POST /agent/result", a.handleResult)
 	mux.HandleFunc("POST /agent/blob/{job}", a.handleBlobPush) // download: agent → server
@@ -319,16 +322,22 @@ type deviceView struct {
 	LastSeen     time.Time `json:"lastSeen"`
 	LastIP       string    `json:"lastIp"`
 	Online       bool      `json:"online"`
+	Locked       bool      `json:"locked"`
+	LastEvent    string    `json:"lastEvent,omitempty"`
+	LastEventAt  time.Time `json:"lastEventAt,omitempty"`
 }
 
 func (a *App) handleDevices(w http.ResponseWriter, r *http.Request) {
 	ds := a.store.Devices()
 	out := make([]deviceView, 0, len(ds))
 	for _, d := range ds {
+		online := a.hub.Online(d.ID)
+		ev, evAt := a.hub.Event(d.ID)
 		out = append(out, deviceView{
 			ID: d.ID, Name: d.Name, Hostname: d.Hostname, OS: d.OS, Arch: d.Arch,
 			Username: d.Username, AgentVersion: d.AgentVersion, EnrolledAt: d.EnrolledAt,
-			LastSeen: d.LastSeen, LastIP: d.LastIP, Online: a.hub.Online(d.ID),
+			LastSeen: d.LastSeen, LastIP: d.LastIP, Online: online,
+			Locked: online && a.hub.IsLocked(d.ID), LastEvent: ev, LastEventAt: evAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -647,7 +656,57 @@ func (a *App) handlePoll(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	a.hub.SetLocked(id, r.Header.Get("X-RF-Locked") == "1")
 	writeJSON(w, http.StatusOK, a.hub.Poll(r.Context(), id))
+}
+
+// handleAgentVersion tells an enrolled agent the current build id (for self-update).
+func (a *App) handleAgentVersion(w http.ResponseWriter, r *http.Request) {
+	if _, ok := a.authDevice(w, r); !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": version})
+}
+
+// handleAgentUpdate serves the current agent binary to an enrolled agent (raw).
+func (a *App) handleAgentUpdate(w http.ResponseWriter, r *http.Request) {
+	if _, ok := a.authDevice(w, r); !ok {
+		return
+	}
+	af, ok := agentFiles[r.PathValue("platform")]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	f, err := os.Open(filepath.Join(a.cfg.AgentsDir, af.file))
+	if err != nil {
+		http.Error(w, "agent binary not available", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	st, _ := f.Stat()
+	w.Header().Set("Content-Type", "application/octet-stream")
+	http.ServeContent(w, r, af.file, st.ModTime(), f)
+}
+
+// handleAgentEvent records a status event reported by the agent.
+func (a *App) handleAgentEvent(w http.ResponseWriter, r *http.Request) {
+	id, ok := a.authDevice(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Event  string `json:"event"`
+		Locked *bool  `json:"locked"`
+	}
+	_ = readJSON(w, r, 4096, &body)
+	if body.Event != "" {
+		a.hub.SetEvent(id, body.Event)
+	}
+	if body.Locked != nil {
+		a.hub.SetLocked(id, *body.Locked)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *App) handleResult(w http.ResponseWriter, r *http.Request) {

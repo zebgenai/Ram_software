@@ -14,11 +14,14 @@ import (
 // work over plain HTTPS, so no extra ports or WebSocket support are needed
 // and it works through office proxies and firewalls.
 type Hub struct {
-	mu       sync.Mutex
-	queues   map[string]chan proto.Request
-	pending  map[string]pendingCall
-	lastPoll map[string]time.Time
-	polling  map[string]int
+	mu        sync.Mutex
+	queues    map[string]chan proto.Request
+	pending   map[string]pendingCall
+	lastPoll  map[string]time.Time
+	polling   map[string]int
+	locked    map[string]bool      // is the PC's screen locked (reported by the agent)
+	lastEvent map[string]string    // last status event, e.g. "disconnected by user"
+	eventAt   map[string]time.Time // when lastEvent was recorded
 }
 
 type pendingCall struct {
@@ -40,11 +43,43 @@ var (
 
 func NewHub() *Hub {
 	return &Hub{
-		queues:   map[string]chan proto.Request{},
-		pending:  map[string]pendingCall{},
-		lastPoll: map[string]time.Time{},
-		polling:  map[string]int{},
+		queues:    map[string]chan proto.Request{},
+		pending:   map[string]pendingCall{},
+		lastPoll:  map[string]time.Time{},
+		polling:   map[string]int{},
+		locked:    map[string]bool{},
+		lastEvent: map[string]string{},
+		eventAt:   map[string]time.Time{},
 	}
+}
+
+// SetLocked records whether the PC's screen is currently locked.
+func (h *Hub) SetLocked(dev string, locked bool) {
+	h.mu.Lock()
+	h.locked[dev] = locked
+	h.mu.Unlock()
+}
+
+// IsLocked reports the last known screen-lock state (only meaningful while online).
+func (h *Hub) IsLocked(dev string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.locked[dev]
+}
+
+// SetEvent records a status event (e.g. the user disconnected).
+func (h *Hub) SetEvent(dev, event string) {
+	h.mu.Lock()
+	h.lastEvent[dev] = event
+	h.eventAt[dev] = time.Now()
+	h.mu.Unlock()
+}
+
+// Event returns the last status event and when it happened.
+func (h *Hub) Event(dev string) (string, time.Time) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastEvent[dev], h.eventAt[dev]
 }
 
 func (h *Hub) queueLocked(dev string) chan proto.Request {
@@ -68,6 +103,9 @@ func (h *Hub) Forget(dev string) {
 	defer h.mu.Unlock()
 	delete(h.queues, dev)
 	delete(h.lastPoll, dev)
+	delete(h.locked, dev)
+	delete(h.lastEvent, dev)
+	delete(h.eventAt, dev)
 	for id, p := range h.pending {
 		if p.device == dev {
 			close(p.ch)

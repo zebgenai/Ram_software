@@ -234,10 +234,12 @@ func wndProc(hwnd uintptr, message uint32, wParam, lParam uintptr) uintptr {
 		case idOpen:
 			openDashboard()
 		case idDisconnect:
+			if !askConsent(appName, "Disconnect this computer from "+companyName+" IT?\n\n"+
+				"This removes IT access until your admin sends a new invite.") {
+				return 0 // user cancelled
+			}
 			pShellNotifyIcon.Call(nimDelete, uintptr(unsafe.Pointer(&trayNID)))
 			disconnectAndExit(trayCfgPath)
-		case idQuit:
-			pPostQuitMessage.Call(0)
 		}
 		return 0
 	case wmDestroy:
@@ -256,7 +258,6 @@ func showTrayMenu(hwnd uintptr) {
 	defer pDestroyMenu.Call(menu)
 	pAppendMenu.Call(menu, mfString, idOpen, uintptr(unsafe.Pointer(utf16("Open dashboard"))))
 	pAppendMenu.Call(menu, mfString, idDisconnect, uintptr(unsafe.Pointer(utf16("Disconnect this computer"))))
-	pAppendMenu.Call(menu, mfString, idQuit, uintptr(unsafe.Pointer(utf16("Quit"))))
 
 	var pt point
 	pGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
