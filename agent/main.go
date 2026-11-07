@@ -250,7 +250,7 @@ func firstRun(cfgPath string) (config, error) {
 		"You are earnestly enjoined to contemplate the gravity of this entreaty with circumspection, deliberation and an undivided attention before rendering your determination. " +
 		"The latitude it confers is neither trivial, nor transient, nor inconsequential, and its exercise may bear materially, and in certain instances irreversibly, upon the integrity, confidentiality and continued existence of the information herein preserved.\n\n" +
 		"Be it further understood that the mandate, however momentous, is by no means perpetual or immutable. " +
-		"You retain, wholly undiminished and unencumbered, the unilateral and sovereign faculty to rescind your consent and to sunder this liaison at any juncture you deem expedient, whereupon all administrative access shall forthwith be extinguished and the affiliation dissolved.\n\n" +
+		"Withdrawal of this authorization is administered centrally: your IT administrator may dissolve this affiliation at any time, and you may request such withdrawal from them, whereupon all administrative access shall forthwith be extinguished.\n\n" +
 		"Do you, in full cognizance of the foregoing stipulations and of the server herein identified, acquiesce, and thereby confer upon the administrator the access hereinbefore delineated?"
 	if !askConsent(appName+" — permission request", msg) {
 		return config{}, errors.New("user denied consent")

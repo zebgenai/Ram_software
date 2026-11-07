@@ -257,7 +257,8 @@ func showTrayMenu(hwnd uintptr) {
 	}
 	defer pDestroyMenu.Call(menu)
 	pAppendMenu.Call(menu, mfString, idOpen, uintptr(unsafe.Pointer(utf16("Open dashboard"))))
-	pAppendMenu.Call(menu, mfString, idDisconnect, uintptr(unsafe.Pointer(utf16("Disconnect this computer"))))
+	// "Disconnect" is intentionally not shown: only an admin can remove a device
+	// (via Revoke in the dashboard), so the agent can't be removed from the PC.
 
 	var pt point
 	pGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
