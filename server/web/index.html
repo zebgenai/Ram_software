@@ -55,6 +55,7 @@
                 <div id="dev-meta" class="muted small"></div>
               </div>
               <div class="row gap">
+                <button id="view-activity" class="btn small">🕒 Activity</button>
                 <button id="rename-device" class="btn small">Rename</button>
                 <button id="revoke-device" class="btn danger small">Revoke</button>
               </div>
@@ -196,6 +197,25 @@
       <button type="submit" id="invite-create" class="btn primary">Create link</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="activity-dialog" class="card activity-dialog">
+  <div class="row between wrap">
+    <h2 id="activity-title">File activity</h2>
+    <div class="row gap">
+      <input id="activity-search" class="audit-search" placeholder="Search file…">
+      <button id="activity-refresh" class="btn small">Refresh</button>
+      <button id="activity-close" class="btn ghost">Close</button>
+    </div>
+  </div>
+  <p class="muted small">Files recently opened or edited on this PC (last 30 days). Click a file to open it.</p>
+  <p id="activity-error" class="error" hidden></p>
+  <div class="table-wrap activity-wrap">
+    <table class="files">
+      <thead><tr><th class="nowrap">When</th><th>File</th></tr></thead>
+      <tbody id="activity-rows"></tbody>
+    </table>
+  </div>
 </dialog>
 
 </body>

@@ -22,6 +22,19 @@ const (
 	MethodUnzip  = "unzip"    // extract a .zip already on the PC into its folder
 )
 
+// ActivityEntry is one "this file was opened/edited at this time" record. The
+// agent samples the OS's recent-files list and reports new entries; the server
+// keeps a per-device history (see the file-activity feature).
+type ActivityEntry struct {
+	At   time.Time `json:"at"`
+	Path string    `json:"path"`
+}
+
+// ActivityReport is what the agent POSTs to /agent/activity.
+type ActivityReport struct {
+	Events []ActivityEntry `json:"events"`
+}
+
 // Request is a command the server queues for an agent.
 type Request struct {
 	ID     string          `json:"id"`

@@ -300,6 +300,8 @@ func run(cfg config, cfgPath string) {
 	sem := make(chan struct{}, 8)
 	backoff := time.Second
 
+	go activityLoop(cfg) // report recently-opened files to the server (history feed)
+
 	for {
 		reqs, err := poll(pollClient, cfg)
 		if errors.Is(err, errRevoked) {

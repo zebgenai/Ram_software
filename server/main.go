@@ -99,6 +99,7 @@ func main() {
 		transfers: NewTransfers(),
 		excel:     NewExcelSessions(),
 		pending:   NewPendingSaves(cfg.DataDir),
+		activity:  OpenActivity(cfg.DataDir),
 	}
 	go app.runPendingRetry()
 
