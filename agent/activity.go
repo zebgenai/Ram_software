@@ -3,11 +3,25 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
 	"remotefiles/internal/proto"
 )
+
+// sampleRecent calls the platform recentActivity() behind a recover, so a bug in
+// the OS-specific parsing (e.g. a malformed shortcut) can never crash the agent
+// and take the computer's file access down with it.
+func sampleRecent() (entries []proto.ActivityEntry) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("recovered from panic sampling recent files: %v", rec)
+			entries = nil
+		}
+	}()
+	return recentActivity()
+}
 
 // activityLoop periodically samples the OS's recently-opened-files list and
 // reports NEW entries to the server (log-on-change: a path is sent only when its
@@ -21,7 +35,7 @@ func activityLoop(cfg config) {
 	lastSent := map[string]time.Time{} // newest reported time per path
 	for {
 		var fresh []proto.ActivityEntry
-		for _, e := range recentActivity() {
+		for _, e := range sampleRecent() {
 			if e.Path == "" {
 				continue
 			}
