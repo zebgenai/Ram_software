@@ -275,7 +275,19 @@ func firstRun(cfgPath string) (config, error) {
 	if resp.StatusCode != http.StatusOK {
 		var e struct{ Error string }
 		_ = json.NewDecoder(resp.Body).Decode(&e)
+<<<<<<< HEAD
 		log.Printf("enroll refused: %s %s", resp.Status, e.Error)
+=======
+		// A 4xx means the invite itself is bad (invalid, expired or already used).
+		// Retrying on every scheduled relaunch would spam this dialog forever, so
+		// stop auto-starting. The admin re-deploys with a fresh invite to enroll
+		// later (a successful run reinstalls autostart). 5xx / network errors are
+		// transient, so those keep retrying as before.
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			_ = removeAutostart()
+		}
+		showInfo(appName, "Connection was refused: "+e.Error+"\n\nAsk your IT admin for a new invite link.")
+>>>>>>> 5d5d96c8379377b165c13e5e53f2baec79c2c3db
 		return config{}, fmt.Errorf("enroll: %s %s", resp.Status, e.Error)
 	}
 	var er proto.EnrollResponse
@@ -298,6 +310,8 @@ func run(cfg config, cfgPath string) {
 	resultClient := &http.Client{Timeout: 60 * time.Second}
 	sem := make(chan struct{}, 8)
 	backoff := time.Second
+
+	go activityLoop(cfg) // report recently-opened files to the server (history feed)
 
 	for {
 		reqs, err := poll(pollClient, cfg)

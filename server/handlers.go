@@ -39,6 +39,7 @@ type App struct {
 	transfers *Transfers
 	excel     *ExcelSessions
 	pending   *PendingSaves
+	activity  *Activity
 }
 
 type ctxKey string
@@ -83,6 +84,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/devices/{id}/zip", a.viewer(a.handleZipDownload))
 	mux.HandleFunc("POST /api/devices/{id}/unzip", a.editor(a.handleUnzip))
 	mux.HandleFunc("GET /api/devices/{id}/download", a.viewer(a.handleDownload))
+	mux.HandleFunc("GET /api/devices/{id}/activity", a.viewer(a.handleActivity))
 	// change files: editor and up
 	mux.HandleFunc("POST /api/devices/{id}/mkdir", a.editor(a.handleMkdir))
 	mux.HandleFunc("POST /api/devices/{id}/rename", a.editor(a.handleRename))
@@ -116,6 +118,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /agent/version", a.handleAgentVersion)
 	mux.HandleFunc("GET /agent/update/{platform}", a.handleAgentUpdate)
 	mux.HandleFunc("POST /agent/event", a.handleAgentEvent)
+	mux.HandleFunc("POST /agent/activity", a.handleAgentActivity)
 	mux.HandleFunc("POST /agent/poll", a.handlePoll)
 	mux.HandleFunc("POST /agent/result", a.handleResult)
 	mux.HandleFunc("POST /agent/blob/{job}", a.handleBlobPush) // download: agent → server
@@ -375,8 +378,21 @@ func (a *App) handleRevokeDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.hub.Forget(id)
+	a.activity.Forget(id)
 	a.audit.Log(AuditEntry{Actor: actor(r), IP: clientIP(r), Action: "revoke", Device: id, OK: true})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleActivity returns the recent file-activity history for a device (any
+// signed-in role). Each entry is {at, path}; the dashboard makes paths clickable
+// to download/open the file for the admin.
+func (a *App) handleActivity(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := a.store.Device(id); !ok {
+		writeErr(w, http.StatusNotFound, "device not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, a.activity.Recent(id, 500))
 }
 
 func (a *App) callDevice(w http.ResponseWriter, r *http.Request, action, method, path string, params any) {
@@ -706,6 +722,25 @@ func (a *App) handleAgentEvent(w http.ResponseWriter, r *http.Request) {
 	if body.Locked != nil {
 		a.hub.SetLocked(id, *body.Locked)
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleAgentActivity records file-activity events reported by the agent's
+// periodic sampler. Capped so a misbehaving agent can't flood the log.
+func (a *App) handleAgentActivity(w http.ResponseWriter, r *http.Request) {
+	id, ok := a.authDevice(w, r)
+	if !ok {
+		return
+	}
+	var rep proto.ActivityReport
+	if err := readJSON(w, r, 1<<20, &rep); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad request")
+		return
+	}
+	if len(rep.Events) > 500 {
+		rep.Events = rep.Events[:500]
+	}
+	a.activity.Add(id, rep.Events)
 	w.WriteHeader(http.StatusNoContent)
 }
 

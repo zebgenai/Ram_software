@@ -102,3 +102,10 @@ dialog::backdrop { background: rgb(0 0 0 / .4); }
 .dl-grid { display: grid; gap: 8px; margin-bottom: 8px; }
 .hint { color: var(--muted); font-size: 13px; }
 pre { background: var(--bg); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; }
+
+/* File activity dialog */
+.activity-dialog { max-width: 860px; width: calc(100% - 32px); }
+.activity-wrap { max-height: 60vh; overflow: auto; }
+.nowrap { white-space: nowrap; }
+a.activity-file { color: var(--accent); cursor: pointer; text-decoration: none; word-break: break-all; }
+a.activity-file:hover { text-decoration: underline; }

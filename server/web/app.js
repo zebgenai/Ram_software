@@ -815,3 +815,82 @@ async function deleteUser(u) {
 
 // ---- boot ----
 showApp().catch(() => showLogin());
+
+// ---- file activity (recently opened/edited files, clickable) ----
+const activityDlg = $("#activity-dialog");
+let activityData = [];
+
+$("#view-activity").addEventListener("click", () => {
+  const d = currentDevice();
+  if (!d) return;
+  $("#activity-title").textContent = "File activity — " + (d.name || d.hostname);
+  $("#activity-search").value = "";
+  loadActivity();
+  activityDlg.showModal();
+});
+$("#activity-close").addEventListener("click", () => activityDlg.close());
+$("#activity-refresh").addEventListener("click", loadActivity);
+$("#activity-search").addEventListener("input", renderActivity);
+
+async function loadActivity() {
+  $("#activity-error").hidden = true;
+  try {
+    activityData = (await api("GET", `/api/devices/${state.current}/activity`)) || [];
+  } catch (err) {
+    activityData = [];
+    $("#activity-error").textContent = err.message;
+    $("#activity-error").hidden = false;
+  }
+  renderActivity();
+}
+
+function renderActivity() {
+  const q = $("#activity-search").value.trim().toLowerCase();
+  const rows = $("#activity-rows");
+  rows.replaceChildren();
+  const list = q ? activityData.filter((a) => (a.path || "").toLowerCase().includes(q)) : activityData;
+  if (!list.length) {
+    rows.append(el("tr", {}, el("td", { colspan: "2", class: "muted" },
+      q ? "No matches." : "No activity recorded yet. It builds up as the PC is used.")));
+    return;
+  }
+  for (const a of list) {
+    const name = (a.path || "").split(/[\\/]/).pop();
+    const link = el("a", { href: "#", class: "activity-file", title: a.path }, name);
+    link.addEventListener("click", (ev) => { ev.preventDefault(); openActivityFile(a.path); });
+    rows.append(el("tr", {},
+      el("td", { class: "small nowrap" }, fmtTime(a.at)),
+      el("td", {}, link, el("div", { class: "muted small" }, a.path))));
+  }
+}
+
+// openActivityFile opens the file for the ADMIN only — in the WPS editor if it's
+// an editable document and Excel editing is enabled, otherwise downloads it.
+// It never opens anything on the remote PC.
+async function openActivityFile(path) {
+  const name = (path || "").split(/[\\/]/).pop();
+  if (state.me.excel && isEditable(name)) {
+    const q = `device=${encodeURIComponent(state.current)}&path=${encodeURIComponent(path)}&name=${encodeURIComponent(name)}`;
+    window.open(`/excel/editor?${q}`, "_blank", "noopener");
+    return;
+  }
+  $("#activity-error").hidden = true;
+  try {
+    const res = await fetch(`/api/devices/${state.current}/download?path=${encodeURIComponent(path)}`, {
+      headers: { "X-Requested-With": "rf" }, credentials: "same-origin",
+    });
+    if (!res.ok) {
+      let msg = `Open failed (${res.status})`;
+      try { msg = (await res.json()).error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (err) {
+    $("#activity-error").textContent = err.message;
+    $("#activity-error").hidden = false;
+  }
+}
