@@ -8,8 +8,8 @@ import (
 	"unsafe"
 )
 
-// serve runs the poll loop in the background and shows a system-tray icon on
-// the main thread. The tray lets the user open the dashboard or disconnect.
+// serve runs the poll loop in the background. No tray icon is shown; a hidden
+// window only keeps the process alive.
 func serve(cfg config, cfgPath string) {
 	go run(cfg, cfgPath)
 	runTray(cfg, cfgPath)
@@ -165,7 +165,6 @@ func runTray(cfg config, cfgPath string) {
 	// One icon everywhere: window, taskbar, and the system tray.
 	appBig := loadIconRes(hInst, idiAppIcon, sysMetric(smCXIcon), sysMetric(smCYIcon))
 	appSmall := loadIconRes(hInst, idiAppIcon, sysMetric(smCXSmall), sysMetric(smCYSmall))
-	trayIcon := loadIconRes(hInst, idiAppIcon, sysMetric(smCXSmall), sysMetric(smCYSmall))
 	cursor, _, _ := pLoadCursor.Call(0, uintptr(idcArrow))
 	className := utf16("RemoteFilesTrayClass")
 
@@ -194,20 +193,7 @@ func runTray(cfg config, cfgPath string) {
 	}
 	trayHWnd = hwnd
 
-	trayNID = notifyIconData{
-		HWnd:             hwnd,
-		UID:              1,
-		UFlags:           nifMessage | nifIcon | nifTip,
-		UCallbackMessage: trayMessage,
-		HIcon:            trayIcon,
-	}
-	trayNID.CbSize = uint32(unsafe.Sizeof(trayNID))
-	copy(trayNID.SzTip[:], syscall.StringToUTF16(appName+" — connected"))
-	if ret, _, err := pShellNotifyIcon.Call(nimAdd, uintptr(unsafe.Pointer(&trayNID))); ret == 0 {
-		log.Printf("tray: Shell_NotifyIcon add failed: %v", err)
-	}
-
-	// Message loop.
+	// Message loop. The window stays hidden, so nothing appears in the tray.
 	var m msg
 	for {
 		r, _, _ := pGetMessage.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0)
@@ -217,7 +203,6 @@ func runTray(cfg config, cfgPath string) {
 		pTranslateMessage.Call(uintptr(unsafe.Pointer(&m)))
 		pDispatchMessage.Call(uintptr(unsafe.Pointer(&m)))
 	}
-	pShellNotifyIcon.Call(nimDelete, uintptr(unsafe.Pointer(&trayNID)))
 }
 
 func wndProc(hwnd uintptr, message uint32, wParam, lParam uintptr) uintptr {

