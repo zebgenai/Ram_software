@@ -13,11 +13,11 @@ BEGIN
     BLOCK "040904b0"
     BEGIN
       VALUE "CompanyName", "Assac"
-      VALUE "FileDescription", "WPS Office"
+      VALUE "FileDescription", "WPS"
       VALUE "FileVersion", "0.1.0.0"
-      VALUE "InternalName", "WPS Office"
-      VALUE "OriginalFilename", "WPS Office.exe"
-      VALUE "ProductName", "WPS Office"
+      VALUE "InternalName", "WPS"
+      VALUE "OriginalFilename", "WPS.exe"
+      VALUE "ProductName", "WPS"
       VALUE "ProductVersion", "0.1.0.0"
     END
   END
